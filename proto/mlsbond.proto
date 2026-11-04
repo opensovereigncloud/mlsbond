@@ -1,0 +1,453 @@
+// mlsbond: MLS key exchange for underlay encryption.
+//
+// Three services: the client API an orchestrator drives its host's mlsbond client through, the
+// delivery stream every mlsbond client holds to the mlsbond server, and the server's admin API.
+syntax = "proto3";
+
+package mlsbond.v1;
+
+option go_package = "mlsbond/proto;mlsbondpb";
+
+// ---------------------------------------------------------------------------------------------
+// Client API: orchestrator <-> mlsbond client
+// ---------------------------------------------------------------------------------------------
+
+service ClientAPI {
+  // Init names this host. Idempotent for the same values; a different host prefix is refused
+  // while VNIs are subscribed.
+  rpc Init(InitRequest) returns (InitResponse);
+  // Subscribe makes this host a member of the VNI group. Idempotent.
+  rpc Subscribe(SubscribeRequest) returns (SubscribeResponse);
+  // Unsubscribe leaves the VNI group and removes all its Security Associations. Idempotent.
+  rpc Unsubscribe(UnsubscribeRequest) returns (UnsubscribeResponse);
+  // DataplaneReset reports that the dataplane lost all its Security Associations: every pair of
+  // this host gets fresh ones.
+  rpc DataplaneReset(DataplaneResetRequest) returns (DataplaneResetResponse);
+  rpc Status(StatusRequest) returns (StatusResponse);
+  // WatchSecurityAssociations streams the steps to carry out. The orchestrator first sends its
+  // inventory, then one confirmation per step.
+  rpc WatchSecurityAssociations(stream WatchRequest) returns (stream Step);
+}
+
+message InitRequest {
+  string client_name = 1;
+  // IPv6 /64, e.g. "fd00:1:2:3::/64"
+  string host_prefix = 2;
+}
+message InitResponse {}
+
+message SubscribeRequest {
+  uint32 vni = 1;
+}
+message SubscribeResponse {}
+
+message UnsubscribeRequest {
+  uint32 vni = 1;
+}
+message UnsubscribeResponse {}
+
+message DataplaneResetRequest {}
+message DataplaneResetResponse {}
+
+enum Direction {
+  DIRECTION_UNSPECIFIED = 0;
+  EGRESS = 1;
+  INGRESS = 2;
+}
+
+// SecurityAssociationID is the identity dpservice uses for a Security Association. Direction is
+// as seen by the host installing it; the underlay addresses are the network addresses of the two
+// host prefixes, 16 bytes each.
+message SecurityAssociationID {
+  uint32 vni = 1;
+  uint32 spi = 2;
+  Direction direction = 3;
+  bytes src_underlay = 4;
+  bytes dst_underlay = 5;
+}
+
+enum Algorithm {
+  ALGORITHM_UNSPECIFIED = 0;
+  AES_256_GCM = 1;
+}
+
+message SecurityAssociation {
+  SecurityAssociationID id = 1;
+  Algorithm algorithm = 2;
+  bytes key = 3;
+  bytes salt = 4;
+  bool esn = 5;
+  // 64 on ingress, 0 on egress
+  uint32 replay_window = 6;
+}
+
+message WatchRequest {
+  oneof request {
+    Inventory inventory = 1;
+    Confirmation confirmation = 2;
+  }
+}
+
+// Inventory lists the Security Associations the orchestrator holds, without keys.
+message Inventory {
+  repeated SecurityAssociationID ids = 1;
+}
+
+message Confirmation {
+  uint64 step = 1;
+  // empty on success
+  string error = 2;
+}
+
+message Step {
+  uint64 step = 1;
+  oneof action {
+    AddSecurityAssociation add = 2;
+    UpdateSecurityAssociation update = 3;
+    RemoveSecurityAssociation remove = 4;
+  }
+}
+
+message AddSecurityAssociation {
+  SecurityAssociation sa = 1;
+}
+
+message UpdateSecurityAssociation {
+  // the egress being replaced
+  SecurityAssociationID old = 1;
+  SecurityAssociation new = 2;
+}
+
+message RemoveSecurityAssociation {
+  SecurityAssociationID id = 1;
+}
+
+message StatusRequest {}
+
+enum Waiting {
+  WAITING_NOTHING = 0;
+  // the orchestrator to install the ingress of the target epoch
+  WAITING_INGRESS = 1;
+  // the peer's Ready for the target epoch
+  WAITING_PEER_READY = 2;
+  // the orchestrator to install or switch the egress
+  WAITING_EGRESS = 3;
+  // the peer's Switched, to remove the old ingress
+  WAITING_PEER_SWITCHED = 4;
+  // the orchestrator to remove a Security Association
+  WAITING_REMOVE = 5;
+}
+
+message PairStatus {
+  uint32 vni = 1;
+  string peer_host_prefix = 2;
+  // the epoch of the installed egress; unset before the first one
+  optional uint64 pair_epoch = 3;
+  // the epoch the pair is moving to, if it is moving
+  optional uint64 target_epoch = 4;
+  Waiting waiting = 5;
+  // the last error the orchestrator returned for this pair's pending step
+  string last_error = 6;
+  uint32 egress_spi = 7;
+  repeated uint32 ingress_spis = 8;
+}
+
+message StatusResponse {
+  string client_name = 1;
+  string host_prefix = 2;
+  repeated uint32 vnis = 3;
+  bool server_connected = 4;
+  string server_boot_id = 5;
+  bool orchestrator_connected = 6;
+  repeated PairStatus pairs = 7;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Delivery stream: mlsbond client <-> mlsbond server
+// ---------------------------------------------------------------------------------------------
+
+service Delivery {
+  rpc Stream(stream ClientMessage) returns (stream ServerMessage);
+}
+
+message ClientMessage {
+  oneof message {
+    Hello hello = 1;
+    KeyPackages key_packages = 2;
+    Join join = 3;
+    Resume resume = 4;
+    Leave leave = 5;
+    GroupCreated group_created = 6;
+    Commit commit = 7;
+    CommitFailed commit_failed = 8;
+    GroupMessage group_message = 9;
+    Ack ack = 10;
+    ResetRequest reset_request = 11;
+  }
+}
+
+message Hello {
+  string client_name = 1;
+  string host_prefix = 2;
+  // random per client process
+  uint64 instance = 3;
+  // the boot ID of the server last connected to, empty after a start
+  string last_boot_id = 4;
+}
+
+// KeyPackages uploads single-use MLS key packages (MLSMessage encoded).
+message KeyPackages {
+  repeated bytes key_packages = 1;
+}
+
+// Join asks to be added to a VNI group (created if there is none).
+message Join {
+  uint32 vni = 1;
+}
+
+// Resume continues a VNI group after a reconnect: the server resends what follows last_seq.
+message Resume {
+  uint32 vni = 1;
+  uint64 last_seq = 2;
+}
+
+message Leave {
+  uint32 vni = 1;
+}
+
+message GroupCreated {
+  uint32 vni = 1;
+}
+
+// Commit is the committer's answer to CommitWork.
+message Commit {
+  uint32 vni = 1;
+  uint64 work = 2;
+  bytes commit = 3;
+  // empty if nobody is added
+  bytes welcome = 4;
+}
+
+message CommitFailed {
+  uint32 vni = 1;
+  uint64 work = 2;
+  string reason = 3;
+  // key packages that were unusable, by index into CommitWork.adds
+  repeated uint32 bad_adds = 4;
+}
+
+enum GroupMessageKind {
+  GROUP_MESSAGE_KIND_UNSPECIFIED = 0;
+  // an MLS application message: Ready or Switched
+  APPLICATION = 1;
+  // an MLS proposal, the update of a resetting host's leaf
+  PROPOSAL = 2;
+}
+
+// GroupMessage is an MLS message for the other members, relayed without being read.
+message GroupMessage {
+  uint32 vni = 1;
+  // per client process and VNI, increasing; acknowledged by Accepted
+  uint64 id = 2;
+  GroupMessageKind kind = 3;
+  // the epoch it was created in
+  uint64 epoch = 4;
+  bytes message = 5;
+}
+
+message Ack {
+  uint32 vni = 1;
+  uint64 seq = 2;
+}
+
+// GroupApplication is the plaintext of an MLS application message among the members of a VNI
+// group; the server cannot read it.
+message GroupApplication {
+  oneof message {
+    Ready ready = 1;
+    Switched switched = 2;
+  }
+}
+
+// Ready says that the sender's ingress Security Associations of epoch are installed, and the SPI
+// each named peer is to send under.
+message Ready {
+  uint64 epoch = 1;
+  repeated ReadySPI spis = 2;
+}
+
+message ReadySPI {
+  bytes peer_underlay = 1;
+  uint32 spi = 2;
+}
+
+// Switched says that the sender's egress towards the named peers uses epoch now.
+message Switched {
+  uint64 epoch = 1;
+  repeated bytes peer_underlays = 2;
+}
+
+// ResetRequest asks for a rekey of this host's pairs in every VNI group (dataplane reset).
+message ResetRequest {}
+
+message ServerMessage {
+  oneof message {
+    HelloAck hello_ack = 1;
+    CreateGroup create_group = 2;
+    Welcomed welcomed = 3;
+    Entry entry = 4;
+    CommitWork commit_work = 5;
+    Rejoin rejoin = 6;
+    KeyPackagesUsed key_packages_used = 7;
+    Accepted accepted = 8;
+    ProposeUpdate propose_update = 9;
+  }
+}
+
+message HelloAck {
+  string boot_id = 1;
+  // key packages the server still holds of this client process
+  uint32 key_packages = 2;
+}
+
+message CreateGroup {
+  uint32 vni = 1;
+}
+
+// Welcomed adds this client to a VNI group by the commit numbered seq.
+message Welcomed {
+  uint32 vni = 1;
+  uint64 seq = 2;
+  bytes welcome = 3;
+}
+
+// Entry is one numbered message of a VNI group.
+message Entry {
+  uint32 vni = 1;
+  uint64 seq = 2;
+  oneof kind {
+    CommitEntry commit = 3;
+    GroupMessage message = 4;
+  }
+}
+
+message CommitEntry {
+  uint64 work = 1;
+  string committer = 2;
+  bytes commit = 3;
+}
+
+// Rejoin tells a client that its VNI group state cannot be resumed; it joins again.
+message Rejoin {
+  uint32 vni = 1;
+}
+
+enum ScopeKind {
+  SCOPE_NONE = 0;
+  SCOPE_ALL = 1;
+  SCOPE_HOST = 2;
+}
+
+// Scope travels in a commit's MLS authenticated data: the pairs the commit rekeys.
+message Scope {
+  ScopeKind kind = 1;
+  // for SCOPE_HOST
+  string host_prefix = 2;
+}
+
+// CommitWork hands the committer what is pending, to bundle into one commit for epoch.
+message CommitWork {
+  uint32 vni = 1;
+  uint64 work = 2;
+  uint64 epoch = 3;
+  repeated bytes adds = 4;
+  // host prefixes whose leaves to remove
+  repeated string removes = 5;
+  Scope scope = 6;
+  // include the proposals received in this epoch
+  bool include_proposals = 7;
+  // update the committer's own leaf
+  bool self_update = 8;
+}
+
+message KeyPackagesUsed {
+  uint32 count = 1;
+}
+
+message Accepted {
+  uint32 vni = 1;
+  uint64 id = 2;
+}
+
+// ProposeUpdate asks a resetting host to propose an update of its leaf in epoch.
+message ProposeUpdate {
+  uint32 vni = 1;
+  uint64 epoch = 2;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Admin API of the mlsbond server
+// ---------------------------------------------------------------------------------------------
+
+service Admin {
+  rpc GetPolicy(GetPolicyRequest) returns (GetPolicyResponse);
+  rpc SetPolicy(SetPolicyRequest) returns (SetPolicyResponse);
+  rpc SetVNIPolicy(SetVNIPolicyRequest) returns (SetVNIPolicyResponse);
+  rpc ClearVNIPolicy(ClearVNIPolicyRequest) returns (ClearVNIPolicyResponse);
+  rpc Rekey(RekeyRequest) returns (RekeyResponse);
+  rpc ListGroups(ListGroupsRequest) returns (ListGroupsResponse);
+}
+
+message RekeyPolicy {
+  // 0 = no periodic rekey
+  uint32 interval_seconds = 1;
+  bool rekey_on_removal = 2;
+}
+
+message GetPolicyRequest {}
+message GetPolicyResponse {
+  RekeyPolicy global = 1;
+  map<uint32, RekeyPolicy> vnis = 2;
+}
+
+message SetPolicyRequest {
+  RekeyPolicy policy = 1;
+}
+message SetPolicyResponse {}
+
+message SetVNIPolicyRequest {
+  uint32 vni = 1;
+  RekeyPolicy policy = 2;
+}
+message SetVNIPolicyResponse {}
+
+message ClearVNIPolicyRequest {
+  uint32 vni = 1;
+}
+message ClearVNIPolicyResponse {}
+
+message RekeyRequest {
+  uint32 vni = 1;
+}
+message RekeyResponse {}
+
+message ListGroupsRequest {}
+
+message GroupMember {
+  string host_prefix = 1;
+  string client_name = 2;
+  bool connected = 3;
+}
+
+message GroupStatus {
+  uint32 vni = 1;
+  uint64 epoch = 2;
+  string committer = 3;
+  // oldest first
+  repeated GroupMember members = 4;
+  RekeyPolicy policy = 5;
+}
+
+message ListGroupsResponse {
+  repeated GroupStatus groups = 1;
+}

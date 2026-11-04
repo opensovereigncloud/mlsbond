@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" viewBox="0 0 1400 940" width="1400" height="940" role="img">
+	<title>mlsbond: one pair moves to a new epoch</title>
+	<desc>Sequence of a rekey of the pair A-B from epoch e to e+1, gapless. After the commit arrives, each client has its orchestrator add the ingress Security Association of e+1 under an SPI it picked (a2 on A, b2 on B), then sends Ready naming that SPI. On the peer's Ready each client has its orchestrator update its egress to e+1 and sends Switched. On the peer's Switched each removes its old ingress. Bars on the left show the Security Associations host A holds with B over time: ingress e and e+1 overlap, and the egress switches in one Update.</desc>
+
+	<style>
+		svg {
+			--ground: #eceff0;
+			--surface: #ffffff;
+			--panel: #f5f8f8;
+			--ink: #131b1f;
+			--ink-2: #4d5c62;
+			--ink-3: #71838a;
+			--rule: #c6d2d5;
+			--out: #0f6f8c;
+			--out-bg: #e6f2f6;
+			--back: #8a5713;
+			--back-bg: #f8f0e4;
+			--ctl: #5a4bb0;
+			--ctl-bg: #efedf9;
+			--sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+			--mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+		}
+
+		@media (prefers-color-scheme: dark) {
+			svg {
+				--ground: #0c1214;
+				--surface: #151d20;
+				--panel: #111a1c;
+				--ink: #dde7e9;
+				--ink-2: #a3b4b9;
+				--ink-3: #7b8d93;
+				--rule: #2a393d;
+				--out: #5cc0dd;
+				--out-bg: #10262e;
+				--back: #e2b262;
+				--back-bg: #2a2214;
+				--ctl: #a99bf0;
+				--ctl-bg: #1d1a33;
+			}
+		}
+
+		.ground { fill: var(--ground); }
+		.panel { fill: var(--panel); stroke: var(--rule); }
+		.box { fill: var(--surface); stroke: var(--rule); }
+		.box-dim { fill: var(--surface); stroke: var(--rule); stroke-dasharray: 4 3; }
+		.box-ctl { fill: var(--surface); stroke: var(--ctl); stroke-width: 1.4; }
+		.fill-ctl { fill: var(--ctl-bg); stroke: var(--ctl); stroke-width: 1.4; }
+		.fill-out { fill: var(--out-bg); stroke: var(--out); stroke-width: 1.4; }
+		.fill-back { fill: var(--back-bg); stroke: var(--back); stroke-width: 1.4; }
+
+		.l-ctl { stroke: var(--ctl); stroke-width: 2; fill: none; }
+		.l-veth { stroke: var(--ctl); stroke-width: 5; fill: none; stroke-linecap: round; }
+		.l-out { stroke: var(--out); stroke-width: 2; fill: none; }
+		.l-back { stroke: var(--back); stroke-width: 2; fill: none; }
+		.l-ink { stroke: var(--ink-3); stroke-width: 1.3; fill: none; }
+		.l-key { stroke: var(--ink-3); stroke-width: 1.3; fill: none; stroke-dasharray: 5 4; }
+		.mk-ink { fill: var(--ink-3); }
+		.mk-ctl { fill: var(--ctl); }
+		.mk-out { fill: var(--out); }
+		.mk-back { fill: var(--back); }
+
+		text { font-family: var(--sans); fill: var(--ink-2); font-size: 11px; white-space: pre; }
+		.t-title { font-size: 23px; font-weight: 600; fill: var(--ink); }
+		.t-sub { font-size: 12px; fill: var(--ink-2); }
+		.t-sec { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; fill: var(--ink-3); }
+		.t-h { font-size: 13px; font-weight: 600; fill: var(--ink); }
+		.t-node { font-family: var(--mono); font-size: 12px; font-weight: 600; fill: var(--ink); }
+		.t-m { font-family: var(--mono); font-size: 10.5px; fill: var(--ink-2); }
+		.t-dim { fill: var(--ink-3); }
+		.c-out { fill: var(--out); }
+		.c-back { fill: var(--back); }
+		.c-ctl { fill: var(--ctl); }
+		.mid { text-anchor: middle; }
+		.end { text-anchor: end; }
+		.l-life { stroke: var(--rule); stroke-width: 1.5; fill: none; stroke-dasharray: 6 5; }
+		.l-ret { stroke: var(--ctl); stroke-width: 1.4; fill: none; stroke-dasharray: 5 4; }
+		.l-ret-ink { stroke: var(--ink-3); stroke-width: 1.3; fill: none; stroke-dasharray: 5 4; }
+		.note { fill: var(--panel); stroke: var(--rule); }
+		.bar-old-out { fill: var(--out-bg); stroke: var(--out); stroke-width: 1.2; stroke-dasharray: 4 3; }
+		.bar-new-out { fill: var(--out); }
+		.bar-old-back { fill: var(--back-bg); stroke: var(--back); stroke-width: 1.2; stroke-dasharray: 4 3; }
+		.bar-new-back { fill: var(--back); }
+		.t-inv { fill: var(--surface); }
+	</style>
+
+	<defs>
+		<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+			<path d="M0 0 L10 5 L0 10 z" class="mk-ink"/>
+		</marker>
+		<marker id="arr-ctl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+			<path d="M0 0 L10 5 L0 10 z" class="mk-ctl"/>
+		</marker>
+		<marker id="arr-out" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+			<path d="M0 0 L10 5 L0 10 z" class="mk-out"/>
+		</marker>
+		<marker id="arr-back" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+			<path d="M0 0 L10 5 L0 10 z" class="mk-back"/>
+		</marker>
+	</defs>
+
+	<rect class="ground" x="0" y="0" width="1400" height="940"/>
+
+	<text class="t-title" x="40" y="48">One pair moves to a new epoch</text>
+	<text class="t-sub" x="40" y="72">pair A–B from epoch e to e+1 · each side waits only on its own orchestrator and on this one peer · a1, a2 are SPIs A picked, b1, b2 SPIs B picked</text>
+	<rect class="box" x="240.0" y="100" width="220" height="50" rx="6"/>
+	<text class="t-h mid" x="350" y="122">orchestrator A</text>
+	<text class="t-m t-dim mid" x="350" y="140">installs into dataplane A</text>
+	<path class="l-life" d="M350 150 V720"/>
+	<rect class="box-ctl" x="580.0" y="100" width="120" height="50" rx="6"/>
+	<text class="t-h mid" x="640" y="130">client A</text>
+	<path class="l-life" d="M640 150 V720"/>
+	<rect class="fill-ctl" x="760.0" y="100" width="120" height="50" rx="6"/>
+	<text class="t-h mid" x="820" y="122">server</text>
+	<text class="t-m t-dim mid" x="820" y="140">relays</text>
+	<path class="l-life" d="M820 150 V720"/>
+	<rect class="box-ctl" x="940.0" y="100" width="120" height="50" rx="6"/>
+	<text class="t-h mid" x="1000" y="130">client B</text>
+	<path class="l-life" d="M1000 150 V720"/>
+	<rect class="box" x="1160.0" y="100" width="220" height="50" rx="6"/>
+	<text class="t-h mid" x="1270" y="122">orchestrator B</text>
+	<text class="t-m t-dim mid" x="1270" y="140">installs into dataplane B</text>
+	<path class="l-life" d="M1270 150 V720"/>
+
+	<!-- commit -->
+	<rect class="note" x="580" y="166" width="480" height="34" rx="5"/>
+	<text class="t-m mid" x="820" y="188">Entry: commit to epoch e+1 whose scope names this pair</text>
+
+	<!-- 1. ingress of e+1 -->
+	<text class="t-title c-ctl mid" x="276" y="252">1</text>
+	<path class="l-ctl" d="M640 250 H350" marker-end="url(#arr-ctl)"/>
+	<text class="t-m c-ctl mid" x="495.0" y="243">Add ingress B→A · e+1 · SPI a2</text>
+	<path class="l-ret" d="M350 272 H640" marker-end="url(#arr-ctl)"/>
+	<text class="t-m c-ctl mid" x="495.0" y="265">ok</text>
+	<path class="l-ctl" d="M1000 250 H1270" marker-end="url(#arr-ctl)"/>
+	<text class="t-m c-ctl mid" x="1135.0" y="243">Add ingress A→B · e+1 · SPI b2</text>
+	<path class="l-ret" d="M1270 272 H1000" marker-end="url(#arr-ctl)"/>
+	<text class="t-m c-ctl mid" x="1135.0" y="265">ok</text>
+
+	<!-- 2. Ready -->
+	<text class="t-title c-ctl mid" x="276" y="330">2</text>
+	<path class="l-ctl" d="M640 320 L1000 364" marker-end="url(#arr-ctl)"/>
+	<path class="l-ctl" d="M1000 320 L640 364" marker-end="url(#arr-ctl)"/>
+	<text class="t-m c-ctl" x="648" y="314">Ready{e+1, B: a2}</text>
+	<text class="t-m c-ctl end" x="992" y="314">Ready{e+1, A: b2}</text>
+	<text class="t-m t-dim mid" x="820" y="392">MLS application messages</text>
+
+	<!-- 3. egress switch -->
+	<text class="t-title c-ctl mid" x="276" y="432">3</text>
+	<path class="l-ctl" d="M640 430 H350" marker-end="url(#arr-ctl)"/>
+	<text class="t-m c-ctl mid" x="495.0" y="423">Update egress A→B: e·b1 → e+1·b2</text>
+	<path class="l-ret" d="M350 452 H640" marker-end="url(#arr-ctl)"/>
+	<text class="t-m c-ctl mid" x="495.0" y="445">ok</text>
+	<path class="l-ctl" d="M1000 430 H1270" marker-end="url(#arr-ctl)"/>
+	<text class="t-m c-ctl mid" x="1135.0" y="423">Update egress B→A: e·a1 → e+1·a2</text>
+	<path class="l-ret" d="M1270 452 H1000" marker-end="url(#arr-ctl)"/>
+	<text class="t-m c-ctl mid" x="1135.0" y="445">ok</text>
+
+	<!-- 4. Switched -->
+	<text class="t-title c-ctl mid" x="276" y="512">4</text>
+	<path class="l-ctl" d="M640 502 L1000 546" marker-end="url(#arr-ctl)"/>
+	<path class="l-ctl" d="M1000 502 L640 546" marker-end="url(#arr-ctl)"/>
+	<text class="t-m c-ctl" x="648" y="496">Switched{e+1}</text>
+	<text class="t-m c-ctl end" x="992" y="496">Switched{e+1}</text>
+
+	<!-- 5. old ingress gone -->
+	<text class="t-title c-ctl mid" x="276" y="612">5</text>
+	<path class="l-ctl" d="M640 610 H350" marker-end="url(#arr-ctl)"/>
+	<text class="t-m c-ctl mid" x="495.0" y="603">Remove ingress B→A · e · SPI a1</text>
+	<path class="l-ret" d="M350 632 H640" marker-end="url(#arr-ctl)"/>
+	<text class="t-m c-ctl mid" x="495.0" y="625">ok</text>
+	<path class="l-ctl" d="M1000 610 H1270" marker-end="url(#arr-ctl)"/>
+	<text class="t-m c-ctl mid" x="1135.0" y="603">Remove ingress A→B · e · SPI b1</text>
+	<path class="l-ret" d="M1270 632 H1000" marker-end="url(#arr-ctl)"/>
+	<text class="t-m c-ctl mid" x="1135.0" y="625">ok</text>
+	<rect class="note" x="580" y="670" width="480" height="34" rx="5"/>
+	<text class="t-m mid" x="820" y="692">pair epoch e+1 on both sides</text>
+
+	<!-- what host A holds with B -->
+	<text class="t-sec" x="70" y="128">ON HOST A</text>
+	<rect class="bar-old-back" x="80" y="170" width="26" height="462" rx="4"/>
+	<text class="t-m c-back mid" x="97" y="401.0" transform="rotate(-90 97 401.0)">ingress e · a1</text>
+	<rect class="bar-new-back" x="120" y="272" width="26" height="432" rx="4"/>
+	<text class="t-m t-inv mid" x="137" y="488.0" transform="rotate(-90 137 488.0)">ingress e+1 · a2</text>
+	<rect class="bar-old-out" x="160" y="170" width="26" height="282" rx="4"/>
+	<text class="t-m c-out mid" x="177" y="311.0" transform="rotate(-90 177 311.0)">egress e · b1</text>
+	<rect class="bar-new-out" x="200" y="452" width="26" height="252" rx="4"/>
+	<text class="t-m t-inv mid" x="217" y="578.0" transform="rotate(-90 217 578.0)">egress e+1 · b2</text>
+	<text class="t-m c-back mid" x="113" y="724">from B</text>
+	<text class="t-m c-out mid" x="193" y="724">to B</text>
+
+	<!-- why -->
+	<rect class="panel" x="40" y="750" width="1320" height="170" rx="8"/>
+	<text class="t-sec" x="56" y="774">WHY NO PACKET IS LOST</text>
+	<text class="t-m" x="56" y="800">B sends under a2 only after A's Ready, and A sends Ready only once its orchestrator confirmed the ingress of e+1.</text>
+	<text class="t-m" x="56" y="821">A removes a1 only after B's Switched: by then B's egress no longer uses it. Until then ingress e and e+1 overlap.</text>
+	<text class="t-m" x="56" y="842">The egress switch is one Update, dpservice's UpdateSecurityAssociation, so there is no moment without an egress.</text>
+	<text class="t-m" x="56" y="863">A step the orchestrator fails is retried with backoff from 250 ms up to 30 s, and nothing after it goes ahead (ADR 0012).</text>
+	<text class="t-m" x="56" y="884">A new pair takes the same path without the old associations: Add ingress, Ready, Add egress, Switched.</text>
+	<text class="t-m" x="56" y="905">Only members in epoch e+1 can read Ready, so it also proves that the peer has processed the commit (ADR 0004).</text>
+</svg>
