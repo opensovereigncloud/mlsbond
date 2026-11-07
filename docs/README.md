@@ -203,13 +203,11 @@ conn.Subscribe(ctx, 100)
 If `cb` also implements `Inventory`, it hands over the IDs of what it holds every time the stream
 opens. After every reconnect, `Connect` repeats `Init`, the subscriptions and the stream.
 
-To keep the inventory and the dataplane in step, metalnet will:
+To keep the inventory and the dataplane in step, metalnet keeps no state on disk:
 
-- get the inventory from dpservice's `ListSecurityAssociations`, which returns IDs without keys;
-- report a dataplane reset when the dpservice instance's UUID changes.
-
-None of this needs keys in a file. Metalnet will get a debug flag, and will write the installed keys
-to a file only when that flag is set, for example to decrypt captured traffic.
+- a restarted metalnet takes the inventory from dpservice, which lists what it holds by identity only;
+- it treats a dpservice it had to initialize itself as new, and reports a dataplane reset before any
+  step can reach it.
 
 ## Security properties and limits
 

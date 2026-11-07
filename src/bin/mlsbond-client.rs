@@ -3,18 +3,22 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use mlsbond::client;
+use mlsbond::proto;
+use mlsbond::proto::client_api_client::ClientApiClient;
 
 #[derive(Parser)]
-#[command(about = "mlsbond client: a host's member in its VNI groups")]
+#[command(about = "mlsbond client: a host's member in its VNI groups", args_conflicts_with_subcommands = true, subcommand_negates_reqs = true)]
 struct Args {
+    #[command(subcommand)]
+    command: Option<Command>,
     /// address of the client API the orchestrator connects to
     #[arg(long, default_value = "[::1]:4714")]
     listen: SocketAddr,
     /// the mlsbond server, host:port
-    #[arg(long)]
-    server: String,
+    #[arg(long, required = true)]
+    server: Option<String>,
     /// key packages kept uploaded at the server
     #[arg(long, default_value_t = 8)]
     key_packages: usize,
@@ -23,12 +27,72 @@ struct Args {
     stale_pairs_after: f64,
 }
 
+#[derive(Subcommand)]
+enum Command {
+    /// Show what a running mlsbond client holds: its VNIs and pairs, each with its epoch, SPIs and what it waits on
+    Status {
+        /// the client API of the mlsbond client
+        #[arg(long, default_value = "[::1]:4714")]
+        address: SocketAddr,
+    },
+}
+
+/// One line per pair, as the harness and its users read it. Keys are not part of the status.
+fn print_status(st: &proto::StatusResponse) {
+    println!("client {}, host prefix {}", st.client_name, st.host_prefix);
+    println!(
+        "server {}, orchestrator {}",
+        if st.server_connected { "connected" } else { "not connected" },
+        if st.orchestrator_connected { "connected" } else { "not connected" }
+    );
+    println!("vnis: {}", st.vnis.iter().map(u32::to_string).collect::<Vec<_>>().join(" "));
+    for p in &st.pairs {
+        let mut line = format!(
+            "vni {} pair {}: epoch {}, spi out {} in {}",
+            p.vni,
+            p.peer_host_prefix,
+            p.pair_epoch.map_or("-".to_string(), |e| e.to_string()),
+            p.egress_spi,
+            p.ingress_spis.iter().map(u32::to_string).collect::<Vec<_>>().join(",")
+        );
+        if let Some(target) = p.target_epoch {
+            line += &format!(", moving to epoch {target}");
+        }
+        line += &format!(", waiting: {}", waiting_name(p.waiting()));
+        if !p.last_error.is_empty() {
+            line += &format!(", last error: {}", p.last_error);
+        }
+        println!("{line}");
+    }
+}
+
+fn waiting_name(waiting: proto::Waiting) -> &'static str {
+    match waiting {
+        proto::Waiting::Nothing => "nothing",
+        proto::Waiting::Ingress => "ingress",
+        proto::Waiting::PeerReady => "peer-ready",
+        proto::Waiting::Egress => "egress",
+        proto::Waiting::PeerSwitched => "peer-switched",
+        proto::Waiting::Remove => "remove",
+    }
+}
+
+async fn status(address: SocketAddr) -> anyhow::Result<()> {
+    let mut api = ClientApiClient::connect(format!("http://{address}")).await?;
+    print_status(&api.status(proto::StatusRequest {}).await?.into_inner());
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    mlsbond::init_logging();
     let args = Args::parse();
+    if let Some(Command::Status { address }) = args.command {
+        return status(address).await;
+    }
+    mlsbond::init_logging();
     let api = client::start(client::Config {
-        server: args.server,
+        // clap requires it unless there is a subcommand
+        server: args.server.expect("--server"),
         key_packages: args.key_packages,
         stale_pairs_after: Duration::from_secs_f64(args.stale_pairs_after),
     });
