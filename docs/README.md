@@ -38,6 +38,8 @@ cannot read them.
   - It uses the Go package in [go/](../go).
   - It is the only component that knows the dataplane, just as with metalbond routes
     ([ADR 0011](adr/0011-the-orchestrator-is-called-with-dataplane-verbs.md)).
+  - A host with an HA pair of dataplanes has two, one for each, which share the client
+    ([ADR 0016](adr/0016-a-host-with-an-ha-pair-has-two-orchestrators.md)).
 - **The dataplane** is dpservice, or the Linux kernel through XFRM
   ([ADR 0015](adr/0015-one-security-association-per-vni-and-direction-on-xfrm-too.md)). It
   encrypts the traffic.
@@ -178,8 +180,8 @@ A lost Ready would stall a pair for good, so the server and the client deliver r
 
 | What restarts | What happens | Cost |
 |---|---|---|
-| The dataplane (e.g. dpservice) | The orchestrator notices the new instance and calls `DataplaneReset`. That host's pairs are rekeyed in every VNI group, and its old keys are never installed again (ADR 0008). | One gapless rekey of that host's pairs |
-| The orchestrator | It reconnects, repeats `Init` and its subscriptions, and reports its **inventory** (the Security Association IDs it holds). The client compares the inventory with its own state and carries on ([ADR 0014](adr/0014-the-client-outlives-its-orchestrator-connection.md)). | Nothing |
+| The dataplane (e.g. dpservice) | The orchestrator notices the new instance and calls `DataplaneReset`. That host's pairs are rekeyed in every VNI group, and its old keys are never installed again (ADR 0008). On an HA pair the other dataplane keeps what it holds and moves on by an update (ADR 0016). | One gapless rekey of that host's pairs |
+| The orchestrator | It reconnects, repeats `Init` and its subscriptions, and reports its **inventory** (the Security Association IDs it holds). The client compares the inventory with its own state and carries on ([ADR 0014](adr/0014-the-client-outlives-its-orchestrator-connection.md)). On an HA pair, nothing waits for the one that is away, and it catches up on its return (ADR 0016). | Nothing |
 | The mlsbond client | It keeps nothing on disk, so it joins again with fresh key packages. The committer replaces its old leaf in the same commit, and the client replaces its pairs, using the inventory to know what is installed (ADR 0009). Associations for a peer that does not rejoin within `--stale-pairs-after` are removed. | One gapless rekey of that host's pairs |
 | The mlsbond server | Clients see a new boot ID, drop their groups and subscribe again. Every VNI group is created anew, and every pair replaces its associations ([ADR 0010](adr/0010-a-restarted-server-regroups-every-vni-from-scratch.md)). | One gapless rekey of every pair |
 | The committer's stream | The next-oldest member with a stream gets the work. The old committer is removed once the grace period is over. | Nothing beyond the removal |
@@ -202,6 +204,13 @@ conn.Subscribe(ctx, 100)
 
 If `cb` also implements `Inventory`, it hands over the IDs of what it holds every time the stream
 opens. After every reconnect, `Connect` repeats `Init`, the subscriptions and the stream.
+
+On a host with an HA pair of dataplanes, each orchestrator names itself, and gives the same host name
+and prefix (ADR 0016):
+
+```go
+conn, err := mlsbond.Connect(ctx, "[::1]:4714", "hostA", hostPrefix, cb, mlsbond.WithOrchestrator("metalnet-a"))
+```
 
 To keep the inventory and the dataplane in step, metalnet keeps no state on disk:
 

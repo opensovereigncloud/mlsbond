@@ -1,6 +1,7 @@
 # A dataplane reset rekeys the host's pairs through a commit
 
-Status: accepted
+Status: accepted; on a host with two dataplanes, the reset names the one that lost its Security
+Associations (ADR 0016)
 
 A dataplane that restarts loses its Security Associations and would count its sequence numbers
 from 1 again, so its old keys must not be installed again: AES-GCM would repeat nonces, and the

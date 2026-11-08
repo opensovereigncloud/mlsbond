@@ -1,6 +1,6 @@
 # The mlsbond client outlives its orchestrator's connection
 
-Status: accepted
+Status: accepted; on a host with two orchestrators, this holds for the last one connected (ADR 0016)
 
 The orchestrator drives the mlsbond client through idempotent unary calls (`Init`, `Subscribe`,
 `Unsubscribe`, `DataplaneReset`, `Status`) and one bidirectional `WatchSecurityAssociations`

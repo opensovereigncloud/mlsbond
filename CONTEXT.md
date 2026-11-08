@@ -23,7 +23,8 @@ member.
 
 **Orchestrator**:
 The component on a host that drives the mlsbond client and installs what it supplies into the
-dataplane, e.g. the control plane or metalnet.
+dataplane, e.g. the control plane or metalnet. A host has one, or two when it runs an HA pair of
+dataplanes, each driving its own.
 _Avoid_: consumer, controller
 
 **Dataplane**:
