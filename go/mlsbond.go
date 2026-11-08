@@ -4,6 +4,9 @@
 // Connect once. Connect keeps the mlsbond client's state alive across reconnects: whenever the
 // connection is new, it repeats Init and the subscriptions and reopens the step stream, handing
 // over the inventory if the Client also implements Inventory.
+//
+// A host running an HA pair of dataplanes has one mlsbond client and two orchestrators, each driving
+// its own dataplane. They tell themselves apart with WithOrchestrator.
 package mlsbond
 
 import (
@@ -130,26 +133,35 @@ type PairStatus struct {
 	IngressSPIs []uint32
 }
 
-// Status is the mlsbond client's state.
+// OrchestratorStatus is one orchestrator the mlsbond client knows.
+type OrchestratorStatus struct {
+	Name      string
+	Connected bool
+}
+
+// Status is the mlsbond client's state, with the pairs from this orchestrator's side.
 type Status struct {
-	Name                  string
-	HostPrefix            netip.Prefix
-	VNIs                  []uint32
-	ServerConnected       bool
-	ServerBootID          string
+	Name            string
+	HostPrefix      netip.Prefix
+	VNIs            []uint32
+	ServerConnected bool
+	ServerBootID    string
+	// whether any orchestrator is connected
 	OrchestratorConnected bool
+	Orchestrators         []OrchestratorStatus
 	Pairs                 []PairStatus
 }
 
 // Conn is the connection to one mlsbond client.
 type Conn struct {
-	name       string
-	hostPrefix netip.Prefix
-	client     Client
-	conn       *grpc.ClientConn
-	api        pb.ClientAPIClient
-	cancel     context.CancelFunc
-	done       chan struct{}
+	name         string
+	orchestrator string
+	hostPrefix   netip.Prefix
+	client       Client
+	conn         *grpc.ClientConn
+	api          pb.ClientAPIClient
+	cancel       context.CancelFunc
+	done         chan struct{}
 
 	mtx  sync.Mutex
 	vnis map[uint32]bool
@@ -157,10 +169,20 @@ type Conn struct {
 	leaving map[uint32]bool
 }
 
+// Option changes how Connect behaves.
+type Option func(*Conn)
+
+// WithOrchestrator names this orchestrator to the mlsbond client, for a host with two of them. Each
+// has its own name, while the name of the host stays the same. A connection of the same name replaces
+// the old one, and a third name is refused while two others are connected.
+func WithOrchestrator(name string) Option {
+	return func(c *Conn) { c.orchestrator = name }
+}
+
 // Connect connects to the mlsbond client at address (host:port), names this host to it, and
 // starts handing it the steps for client. It fails if the mlsbond client is unreachable or
 // refuses the name or host prefix.
-func Connect(ctx context.Context, address, name string, hostPrefix netip.Prefix, client Client) (*Conn, error) {
+func Connect(ctx context.Context, address, name string, hostPrefix netip.Prefix, client Client, opts ...Option) (*Conn, error) {
 	conn, err := grpc.NewClient(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
@@ -175,6 +197,9 @@ func Connect(ctx context.Context, address, name string, hostPrefix netip.Prefix,
 		vnis:       map[uint32]bool{},
 		leaving:    map[uint32]bool{},
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
 	if err := c.init(ctx); err != nil {
 		conn.Close()
 		return nil, err
@@ -185,7 +210,8 @@ func Connect(ctx context.Context, address, name string, hostPrefix netip.Prefix,
 	return c, nil
 }
 
-// Close stops handing over steps. The mlsbond client keeps its subscriptions.
+// Close stops handing over steps. The mlsbond client keeps the subscriptions of the last orchestrator
+// connected, and ends those of one that closes while the other stays.
 func (c *Conn) Close() error {
 	c.cancel()
 	<-c.done
@@ -199,12 +225,12 @@ func (c *Conn) Subscribe(ctx context.Context, vni uint32) error {
 	c.vnis[vni] = true
 	delete(c.leaving, vni)
 	c.mtx.Unlock()
-	_, err := c.api.Subscribe(ctx, &pb.SubscribeRequest{Vni: vni})
+	_, err := c.api.Subscribe(ctx, &pb.SubscribeRequest{Vni: vni, Orchestrator: c.orchestrator})
 	return err
 }
 
-// Unsubscribe leaves the VNI group; its Security Associations are removed through the Client.
-// It is remembered and repeated after a reconnect until the mlsbond client confirms it.
+// Unsubscribe leaves the VNI group, once no other orchestrator of this host wants it; its Security
+// Associations are removed through the Client. It is remembered and repeated after a reconnect until the mlsbond client confirms it.
 func (c *Conn) Unsubscribe(ctx context.Context, vni uint32) error {
 	c.mtx.Lock()
 	delete(c.vnis, vni)
@@ -214,7 +240,7 @@ func (c *Conn) Unsubscribe(ctx context.Context, vni uint32) error {
 }
 
 func (c *Conn) unsubscribe(ctx context.Context, vni uint32) error {
-	if _, err := c.api.Unsubscribe(ctx, &pb.UnsubscribeRequest{Vni: vni}); err != nil {
+	if _, err := c.api.Unsubscribe(ctx, &pb.UnsubscribeRequest{Vni: vni, Orchestrator: c.orchestrator}); err != nil {
 		return err
 	}
 	c.mtx.Lock()
@@ -225,15 +251,15 @@ func (c *Conn) unsubscribe(ctx context.Context, vni uint32) error {
 	return nil
 }
 
-// DataplaneReset reports that the dataplane lost all its Security Associations.
+// DataplaneReset reports that this orchestrator's dataplane lost all its Security Associations.
 func (c *Conn) DataplaneReset(ctx context.Context) error {
-	_, err := c.api.DataplaneReset(ctx, &pb.DataplaneResetRequest{})
+	_, err := c.api.DataplaneReset(ctx, &pb.DataplaneResetRequest{Orchestrator: c.orchestrator})
 	return err
 }
 
 // Status returns the mlsbond client's state.
 func (c *Conn) Status(ctx context.Context) (*Status, error) {
-	res, err := c.api.Status(ctx, &pb.StatusRequest{})
+	res, err := c.api.Status(ctx, &pb.StatusRequest{Orchestrator: c.orchestrator})
 	if err != nil {
 		return nil, err
 	}
@@ -245,6 +271,9 @@ func (c *Conn) Status(ctx context.Context) (*Status, error) {
 		OrchestratorConnected: res.OrchestratorConnected,
 	}
 	s.HostPrefix, _ = netip.ParsePrefix(res.HostPrefix)
+	for _, o := range res.Orchestrators {
+		s.Orchestrators = append(s.Orchestrators, OrchestratorStatus{Name: o.Name, Connected: o.Connected})
+	}
 	for _, p := range res.Pairs {
 		ps := PairStatus{
 			VNI:         p.Vni,
@@ -292,7 +321,7 @@ func (c *Conn) session(ctx context.Context) error {
 	leaving := slices.Sorted(maps.Keys(c.leaving))
 	c.mtx.Unlock()
 	for _, vni := range vnis {
-		if _, err := c.api.Subscribe(ctx, &pb.SubscribeRequest{Vni: vni}); err != nil {
+		if _, err := c.api.Subscribe(ctx, &pb.SubscribeRequest{Vni: vni, Orchestrator: c.orchestrator}); err != nil {
 			return err
 		}
 	}
@@ -308,7 +337,7 @@ func (c *Conn) session(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	inventory := &pb.Inventory{}
+	inventory := &pb.Inventory{Orchestrator: c.orchestrator}
 	if inv, ok := c.client.(Inventory); ok {
 		for _, id := range inv.SecurityAssociations() {
 			inventory.Ids = append(inventory.Ids, idToProto(id))

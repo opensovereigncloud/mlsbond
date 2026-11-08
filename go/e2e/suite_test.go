@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -154,19 +155,33 @@ type host struct {
 	client *process
 	orch   *fakeOrchestrator
 	conn   *mlsbond.Conn
+	// the name of its stream, empty on a host with one orchestrator
+	orchestrator string
 }
 
 func newHost(s *server, name, prefix string) *host {
-	h := &host{name: name, prefix: netip.MustParsePrefix(prefix), addr: freeAddr(), orch: newFakeOrchestrator(name)}
-	h.client = startProcess(name, "mlsbond-client", "--listen", h.addr, "--server", s.addr, "--stale-pairs-after", "5")
+	h := startClient(s, name, prefix)
 	h.connect()
 	return h
+}
+
+// startClient starts a host's mlsbond client, with no orchestrator connected yet.
+func startClient(s *server, name, prefix string) *host {
+	h := &host{name: name, prefix: netip.MustParsePrefix(prefix), addr: freeAddr(), orch: newFakeOrchestrator(name)}
+	h.client = startProcess(name, "mlsbond-client", "--listen", h.addr, "--server", s.addr, "--stale-pairs-after", "5")
+	return h
+}
+
+// clientName is the name the mlsbond client is given, which two orchestrators of a host share.
+func (h *host) clientName() string {
+	name, _, _ := strings.Cut(h.name, "/")
+	return name
 }
 
 // connect starts the orchestrator's connection, as on its start.
 func (h *host) connect() {
 	Eventually(func() error {
-		conn, err := mlsbond.Connect(context.Background(), h.addr, h.name, h.prefix, h.orch)
+		conn, err := mlsbond.Connect(context.Background(), h.addr, h.clientName(), h.prefix, h.orch, mlsbond.WithOrchestrator(h.orchestrator))
 		h.conn = conn
 		return err
 	}).Should(Succeed())

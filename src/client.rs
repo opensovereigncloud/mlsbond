@@ -1,7 +1,7 @@
 //! The mlsbond client: one per host, its member in every VNI group it subscribed to. It derives
-//! the Security Associations of each pair of hosts and hands them to its orchestrator one step at
-//! a time, paced by the peers' Ready and Switched. It never touches a dataplane and keeps
-//! everything in memory only.
+//! the Security Associations of each pair of hosts and hands them to its orchestrators one step at
+//! a time, paced by the peers' Ready and Switched. A host has one orchestrator, or two when it runs
+//! an HA pair of dataplanes. It never touches a dataplane and keeps everything in memory only.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::pin::Pin;
@@ -42,6 +42,8 @@ pub struct Config {
 const BACKOFF_START: Duration = Duration::from_millis(250);
 const BACKOFF_MAX: Duration = Duration::from_secs(30);
 const REPLAY_WINDOW: u32 = 64;
+/// The dataplanes of an HA pair.
+const MAX_ORCHESTRATORS: usize = 2;
 
 /// The identity of a Security Association, as dpservice uses it.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
@@ -97,17 +99,55 @@ fn sa_proto(id: SaId, km: &KeyMaterial) -> proto::SecurityAssociation {
 type StepTx = mpsc::UnboundedSender<Result<proto::Step, Status>>;
 
 enum Event {
-    Init { name: String, prefix: HostPrefix, reply: oneshot::Sender<Result<(), Status>> },
-    Subscribe { vni: u32, reply: oneshot::Sender<Result<(), Status>> },
-    Unsubscribe { vni: u32, reply: oneshot::Sender<Result<(), Status>> },
-    DataplaneReset { reply: oneshot::Sender<Result<(), Status>> },
-    Status { reply: oneshot::Sender<proto::StatusResponse> },
-    WatchOpened { watch: u64, inventory: Vec<proto::SecurityAssociationId>, tx: StepTx },
-    Confirmed { watch: u64, step: u64, error: String },
-    WatchClosed { watch: u64 },
-    ServerConnecting { conn: u64, tx: mpsc::UnboundedSender<proto::ClientMessage> },
-    FromServer { conn: u64, msg: server_message::Message },
-    ServerDisconnected { conn: u64 },
+    Init {
+        name: String,
+        prefix: HostPrefix,
+        reply: oneshot::Sender<Result<(), Status>>,
+    },
+    Subscribe {
+        vni: u32,
+        orchestrator: String,
+        reply: oneshot::Sender<Result<(), Status>>,
+    },
+    Unsubscribe {
+        vni: u32,
+        orchestrator: String,
+        reply: oneshot::Sender<Result<(), Status>>,
+    },
+    DataplaneReset {
+        orchestrator: String,
+        reply: oneshot::Sender<Result<(), Status>>,
+    },
+    Status {
+        orchestrator: String,
+        reply: oneshot::Sender<proto::StatusResponse>,
+    },
+    WatchOpened {
+        watch: u64,
+        orchestrator: String,
+        inventory: Vec<proto::SecurityAssociationId>,
+        tx: StepTx,
+        reply: oneshot::Sender<Result<(), Status>>,
+    },
+    Confirmed {
+        watch: u64,
+        step: u64,
+        error: String,
+    },
+    WatchClosed {
+        watch: u64,
+    },
+    ServerConnecting {
+        conn: u64,
+        tx: mpsc::UnboundedSender<proto::ClientMessage>,
+    },
+    FromServer {
+        conn: u64,
+        msg: server_message::Message,
+    },
+    ServerDisconnected {
+        conn: u64,
+    },
 }
 
 /// Starts the client's state machine and returns its API service.
@@ -147,26 +187,28 @@ impl ClientApi for ApiService {
     }
 
     async fn subscribe(&self, req: Request<proto::SubscribeRequest>) -> Result<Response<proto::SubscribeResponse>, Status> {
-        let vni = req.into_inner().vni;
-        check_vni(vni)?;
-        self.ask(|reply| Event::Subscribe { vni, reply }).await??;
+        let req = req.into_inner();
+        check_vni(req.vni)?;
+        self.ask(|reply| Event::Subscribe { vni: req.vni, orchestrator: req.orchestrator, reply }).await??;
         Ok(Response::new(proto::SubscribeResponse {}))
     }
 
     async fn unsubscribe(&self, req: Request<proto::UnsubscribeRequest>) -> Result<Response<proto::UnsubscribeResponse>, Status> {
-        let vni = req.into_inner().vni;
-        check_vni(vni)?;
-        self.ask(|reply| Event::Unsubscribe { vni, reply }).await??;
+        let req = req.into_inner();
+        check_vni(req.vni)?;
+        self.ask(|reply| Event::Unsubscribe { vni: req.vni, orchestrator: req.orchestrator, reply }).await??;
         Ok(Response::new(proto::UnsubscribeResponse {}))
     }
 
-    async fn dataplane_reset(&self, _: Request<proto::DataplaneResetRequest>) -> Result<Response<proto::DataplaneResetResponse>, Status> {
-        self.ask(|reply| Event::DataplaneReset { reply }).await??;
+    async fn dataplane_reset(&self, req: Request<proto::DataplaneResetRequest>) -> Result<Response<proto::DataplaneResetResponse>, Status> {
+        let orchestrator = req.into_inner().orchestrator;
+        self.ask(|reply| Event::DataplaneReset { orchestrator, reply }).await??;
         Ok(Response::new(proto::DataplaneResetResponse {}))
     }
 
-    async fn status(&self, _: Request<proto::StatusRequest>) -> Result<Response<proto::StatusResponse>, Status> {
-        Ok(Response::new(self.ask(|reply| Event::Status { reply }).await?))
+    async fn status(&self, req: Request<proto::StatusRequest>) -> Result<Response<proto::StatusResponse>, Status> {
+        let orchestrator = req.into_inner().orchestrator;
+        Ok(Response::new(self.ask(|reply| Event::Status { orchestrator, reply }).await?))
     }
 
     type WatchSecurityAssociationsStream = Pin<Box<dyn Stream<Item = Result<proto::Step, Status>> + Send>>;
@@ -177,13 +219,13 @@ impl ClientApi for ApiService {
     ) -> Result<Response<Self::WatchSecurityAssociationsStream>, Status> {
         let mut inbound = req.into_inner();
         let inventory = match inbound.message().await?.and_then(|r| r.request) {
-            Some(watch_request::Request::Inventory(inv)) => inv.ids,
+            Some(watch_request::Request::Inventory(inv)) => inv,
             _ => return Err(Status::invalid_argument("the stream must start with the inventory")),
         };
         let watch = self.next_watch.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = mpsc::unbounded_channel();
         let events = self.events.clone();
-        events.send(Event::WatchOpened { watch, inventory, tx }).map_err(|_| Status::unavailable("shutting down"))?;
+        self.ask(|reply| Event::WatchOpened { watch, orchestrator: inventory.orchestrator, inventory: inventory.ids, tx, reply }).await??;
         tokio::spawn(async move {
             while let Ok(Some(r)) = inbound.message().await {
                 if let Some(watch_request::Request::Confirmation(c)) = r.request {
@@ -237,7 +279,7 @@ async fn server_connection(server: String, conn: u64, events: mpsc::UnboundedSen
 // State
 // ------------------------------------------------------------------------------------------------
 
-/// A Security Association the orchestrator holds, with the epoch it was derived from. Generation
+/// A Security Association an orchestrator holds, with the epoch it was derived from. Generation
 /// counts this client's VNI groups of one VNI, so that epochs of a regrouped VNI compare as newer;
 /// 0 is an association known only from the orchestrator's inventory.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -280,10 +322,34 @@ struct Inflight {
     action: Action,
 }
 
-/// Two hosts in one VNI group, from this host's side.
-struct Pair {
+/// What one orchestrator's dataplane holds of a pair, and how far its steps are.
+struct Held {
     egress: Option<Installed>,
     ingress: Vec<Installed>,
+    inflight: Option<Inflight>,
+    retry_at: Option<Instant>,
+    backoff: Duration,
+    last_error: String,
+}
+
+impl Held {
+    fn new() -> Held {
+        Held { egress: None, ingress: Vec::new(), inflight: None, retry_at: None, backoff: BACKOFF_START, last_error: String::new() }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.egress.is_none() && self.ingress.is_empty() && self.inflight.is_none()
+    }
+
+    fn all(&self) -> impl Iterator<Item = &Installed> {
+        self.egress.iter().chain(self.ingress.iter())
+    }
+}
+
+/// Two hosts in one VNI group, from this host's side.
+struct Pair {
+    /// per orchestrator, kept while one is away
+    held: BTreeMap<String, Held>,
     target: Option<Target>,
     /// the latest Ready of the peer: (generation, epoch, the SPI to send under)
     peer_ready: Option<(u64, u64, u32)>,
@@ -293,60 +359,56 @@ struct Pair {
     ending: bool,
     /// a pair from before a (re)join, ended unless its peer joins until then
     stale_at: Option<Instant>,
-    inflight: Option<Inflight>,
-    retry_at: Option<Instant>,
-    backoff: Duration,
-    last_error: String,
+    /// what the peer was last told, see release_group_messages
+    ready_sent: Option<(u64, u64)>,
+    switched_sent: Option<(u64, u64)>,
 }
 
 impl Pair {
     fn new() -> Pair {
         Pair {
-            egress: None,
-            ingress: Vec::new(),
+            held: BTreeMap::new(),
             target: None,
             peer_ready: None,
             peer_switched: None,
             ending: false,
             stale_at: None,
-            inflight: None,
-            retry_at: None,
-            backoff: BACKOFF_START,
-            last_error: String::new(),
+            ready_sent: None,
+            switched_sent: None,
         }
     }
 
     fn is_empty(&self) -> bool {
-        self.egress.is_none() && self.ingress.is_empty() && self.inflight.is_none()
+        self.held.values().all(Held::is_empty)
     }
 
-    /// The next step to carry out, in the safe order.
-    fn next_action(&self, vni: u32, me: HostPrefix, peer: HostPrefix) -> Option<Action> {
+    /// The next step for an orchestrator holding `h`, in the safe order.
+    fn next_action(&self, h: &Held, vni: u32, me: HostPrefix, peer: HostPrefix) -> Option<Action> {
         if self.ending {
-            return self.egress.iter().chain(self.ingress.iter()).next().map(|i| Action::Remove { sa: i.id });
+            return h.all().next().map(|i| Action::Remove { sa: i.id });
         }
         let t = self.target.as_ref()?;
-        if !self.ingress.iter().any(|i| i.at() == t.at()) {
+        if !h.ingress.iter().any(|i| i.at() == t.at()) {
             let spi = t.ingress_spi?;
             return Some(Action::AddIngress { sa: SaId { vni, spi, egress: false, src: peer, dst: me }, generation: t.generation, epoch: t.epoch });
         }
         if let Some((generation, epoch, spi)) = self.peer_ready {
-            if (generation, epoch) == t.at() && self.egress.is_none_or(|e| e.at() != t.at()) {
+            if (generation, epoch) == t.at() && h.egress.is_none_or(|e| e.at() != t.at()) {
                 let sa = SaId { vni, spi, egress: true, src: me, dst: peer };
-                return Some(Action::SetEgress { old: self.egress.map(|e| e.id), sa, generation, epoch });
+                return Some(Action::SetEgress { old: h.egress.map(|e| e.id), sa, generation, epoch });
             }
         }
         if let Some(switched) = self.peer_switched {
-            if let Some(old) = self.ingress.iter().find(|i| i.at() < switched) {
+            if let Some(old) = h.ingress.iter().find(|i| i.at() < switched) {
                 return Some(Action::Remove { sa: old.id });
             }
         }
         None
     }
 
-    fn waiting(&self) -> proto::Waiting {
+    fn waiting(&self, h: &Held) -> proto::Waiting {
         use proto::Waiting as W;
-        if let Some(f) = &self.inflight {
+        if let Some(f) = &h.inflight {
             return match f.action {
                 Action::AddIngress { .. } => W::Ingress,
                 Action::SetEgress { .. } => W::Egress,
@@ -357,16 +419,16 @@ impl Pair {
             return W::Remove;
         }
         let Some(t) = &self.target else { return W::Nothing };
-        if !self.ingress.iter().any(|i| i.at() == t.at()) {
+        if !h.ingress.iter().any(|i| i.at() == t.at()) {
             return W::Ingress;
         }
-        if self.egress.is_none_or(|e| e.at() != t.at()) {
+        if h.egress.is_none_or(|e| e.at() != t.at()) {
             return match self.peer_ready {
                 Some((generation, epoch, _)) if (generation, epoch) == t.at() => W::Egress,
                 _ => W::PeerReady,
             };
         }
-        if self.ingress.iter().any(|i| i.at() < t.at()) {
+        if h.ingress.iter().any(|i| i.at() < t.at()) {
             return W::PeerSwitched;
         }
         W::Nothing
@@ -416,7 +478,8 @@ struct Core {
     /// HelloAck received on the current stream
     connected: bool,
     boot_id: Option<String>,
-    vnis: BTreeSet<u32>,
+    /// the subscribed VNIs, with the orchestrators that want them
+    interest: BTreeMap<u32, BTreeSet<String>>,
     /// VNIs left while the server was away
     leaving: BTreeSet<u32>,
     reset_pending: bool,
@@ -424,7 +487,8 @@ struct Core {
     /// last generation per VNI, kept across groups
     generations: HashMap<u32, u64>,
     pairs: BTreeMap<(u32, HostPrefix), Pair>,
-    watch: Option<Watch>,
+    /// the orchestrators known by name, with their stream while it is open
+    orchestrators: BTreeMap<String, Option<Watch>>,
     next_step: u64,
     next_msg_id: u64,
     /// SPIs that may still be installed without this client knowing
@@ -447,13 +511,13 @@ impl Core {
             server_tx: None,
             connected: false,
             boot_id: None,
-            vnis: BTreeSet::new(),
+            interest: BTreeMap::new(),
             leaving: BTreeSet::new(),
             reset_pending: false,
             groups: BTreeMap::new(),
             generations: HashMap::new(),
             pairs: BTreeMap::new(),
-            watch: None,
+            orchestrators: BTreeMap::new(),
             next_step: 1,
             next_msg_id: 1,
             avoid_spis: HashSet::new(),
@@ -473,6 +537,7 @@ impl Core {
                 _ = tokio::time::sleep_until(wake.into()) => {}
             }
             self.expire_stale_pairs();
+            self.release_group_messages();
             self.flush_group_messages();
             self.drive();
         }
@@ -485,11 +550,12 @@ impl Core {
     fn next_wake(&self) -> Instant {
         let far = Instant::now() + Duration::from_secs(3600);
         // retries only matter while the orchestrator is there to carry them out
-        let watching = self.watch.is_some();
         self.pairs
             .values()
-            .flat_map(|p| [p.retry_at.filter(|_| watching && p.inflight.is_none()), p.stale_at])
-            .flatten()
+            .flat_map(|p| {
+                let retries = p.held.iter().filter(|(name, h)| h.inflight.is_none() && self.is_open(name)).filter_map(|(_, h)| h.retry_at);
+                retries.chain(p.stale_at)
+            })
             .min()
             .unwrap_or(far)
             .min(far)
@@ -500,30 +566,36 @@ impl Core {
             Event::Init { name, prefix, reply } => {
                 let _ = reply.send(self.init(name, prefix));
             }
-            Event::Subscribe { vni, reply } => {
-                let _ = reply.send(self.subscribe(vni));
+            Event::Subscribe { vni, orchestrator, reply } => {
+                let _ = reply.send(self.subscribe(vni, orchestrator));
             }
-            Event::Unsubscribe { vni, reply } => {
-                self.unsubscribe(vni);
+            Event::Unsubscribe { vni, orchestrator, reply } => {
+                self.unsubscribe(vni, &orchestrator);
                 let _ = reply.send(Ok(()));
             }
-            Event::DataplaneReset { reply } => {
-                self.dataplane_reset();
+            Event::DataplaneReset { orchestrator, reply } => {
+                self.dataplane_reset(&orchestrator);
                 let _ = reply.send(Ok(()));
             }
-            Event::Status { reply } => {
-                let _ = reply.send(self.status());
+            Event::Status { orchestrator, reply } => {
+                let _ = reply.send(self.status(&orchestrator));
             }
-            Event::WatchOpened { watch, inventory, tx } => self.watch_opened(watch, inventory, tx),
+            Event::WatchOpened { watch, orchestrator, inventory, tx, reply } => {
+                let admitted = self.admit(&orchestrator);
+                let refused = admitted.is_err();
+                let _ = reply.send(admitted);
+                if !refused {
+                    self.watch_opened(watch, orchestrator, inventory, tx);
+                }
+            }
             Event::Confirmed { watch, step, error } => {
-                if self.watch.as_ref().is_some_and(|w| w.id == watch) {
-                    self.confirmed(step, error);
+                if let Some(name) = self.stream_of(watch) {
+                    self.confirmed(&name, step, error);
                 }
             }
             Event::WatchClosed { watch } => {
-                if self.watch.as_ref().is_some_and(|w| w.id == watch) {
-                    info!("orchestrator disconnected");
-                    self.watch = None;
+                if let Some(name) = self.stream_of(watch) {
+                    self.watch_closed(&name);
                 }
             }
             Event::ServerConnecting { conn, tx } if conn == self.conn => {
@@ -563,7 +635,7 @@ impl Core {
                 self.name = name;
                 return Ok(());
             }
-            if !self.vnis.is_empty() {
+            if !self.interest.is_empty() {
                 return Err(Status::failed_precondition(format!("host prefix is {}, cannot change it while VNIs are subscribed", id.prefix)));
             }
         }
@@ -586,11 +658,15 @@ impl Core {
         Ok(())
     }
 
-    fn subscribe(&mut self, vni: u32) -> Result<(), Status> {
+    fn subscribe(&mut self, vni: u32, orchestrator: String) -> Result<(), Status> {
         if self.identity.is_none() {
             return Err(Status::failed_precondition("Init first"));
         }
-        if !self.vnis.insert(vni) {
+        self.admit(&orchestrator)?;
+        let names = self.interest.entry(vni).or_default();
+        let joined = !names.is_empty();
+        names.insert(orchestrator);
+        if joined {
             return Ok(());
         }
         info!("vni {vni}: subscribed");
@@ -600,10 +676,16 @@ impl Core {
         Ok(())
     }
 
-    fn unsubscribe(&mut self, vni: u32) {
-        if !self.vnis.remove(&vni) {
+    /// Ends one orchestrator's interest in a VNI, and leaves the group once none wants it. An
+    /// orchestrator decides by its own dataplane, so that one lagging behind must not take away
+    /// what the other one still uses.
+    fn unsubscribe(&mut self, vni: u32, orchestrator: &str) {
+        let Some(names) = self.interest.get_mut(&vni) else { return };
+        names.remove(orchestrator);
+        if !names.is_empty() {
             return;
         }
+        self.interest.remove(&vni);
         info!("vni {vni}: unsubscribed, removing its Security Associations");
         if let Some(mut g) = self.groups.remove(&vni) {
             self.delete_mls(&mut g);
@@ -618,25 +700,23 @@ impl Core {
         }
     }
 
-    fn dataplane_reset(&mut self) {
-        info!("dataplane reset: all Security Associations are gone, rekeying every pair");
+    /// One dataplane lost its Security Associations. Every pair gets new ones through the commit
+    /// this asks for: that orchestrator adds them, and another one keeps what it holds and moves on
+    /// through Update.
+    fn dataplane_reset(&mut self, orchestrator: &str) {
+        info!("dataplane reset{}: all its Security Associations are gone, rekeying every pair", of(orchestrator));
         for p in self.pairs.values_mut() {
-            if let Some(f) = p.inflight.take() {
+            if let Some(f) = p.held.remove(orchestrator).and_then(|h| h.inflight) {
                 // carried out or not, it may be in the new dataplane
                 if let Action::AddIngress { sa, .. } = f.action {
                     self.avoid_spis.insert(sa.spi);
                 }
             }
-            p.egress = None;
-            p.ingress.clear();
             p.target = None;
             p.peer_ready = None;
             p.peer_switched = None;
-            p.retry_at = None;
-            p.backoff = BACKOFF_START;
-            p.last_error.clear();
         }
-        self.pairs.retain(|_, p| !p.ending);
+        self.pairs.retain(|_, p| !(p.ending && p.is_empty()));
         self.reset_pending = true;
         if self.connected {
             self.send_reset();
@@ -648,33 +728,44 @@ impl Core {
         self.send(client_message::Message::ResetRequest(proto::ResetRequest {}));
     }
 
-    fn status(&self) -> proto::StatusResponse {
+    fn status(&self, orchestrator: &str) -> proto::StatusResponse {
+        let nothing = Held::new();
         let pairs = self
             .pairs
             .iter()
-            .map(|((vni, peer), p)| {
+            .filter_map(|((vni, peer), p)| {
+                let h = p.held.get(orchestrator).unwrap_or(&nothing);
+                if p.ending && h.is_empty() {
+                    // only left for an orchestrator that is away
+                    return None;
+                }
                 let generation = self.groups.get(vni).map(|g| g.generation).unwrap_or(0);
-                let settled = p.waiting() == proto::Waiting::Nothing;
-                proto::PairStatus {
+                let settled = p.waiting(h) == proto::Waiting::Nothing;
+                Some(proto::PairStatus {
                     vni: *vni,
                     peer_host_prefix: peer.to_string(),
-                    pair_epoch: p.egress.filter(|e| e.generation == generation && generation > 0).map(|e| e.epoch),
+                    pair_epoch: h.egress.filter(|e| e.generation == generation && generation > 0).map(|e| e.epoch),
                     target_epoch: p.target.as_ref().filter(|_| !settled).map(|t| t.epoch),
-                    waiting: p.waiting().into(),
-                    last_error: p.last_error.clone(),
-                    egress_spi: p.egress.map(|e| e.id.spi).unwrap_or(0),
-                    ingress_spis: p.ingress.iter().map(|i| i.id.spi).collect(),
-                }
+                    waiting: p.waiting(h).into(),
+                    last_error: h.last_error.clone(),
+                    egress_spi: h.egress.map(|e| e.id.spi).unwrap_or(0),
+                    ingress_spis: h.ingress.iter().map(|i| i.id.spi).collect(),
+                })
             })
             .collect();
         proto::StatusResponse {
             client_name: self.name.clone(),
             host_prefix: self.identity.as_ref().map(|i| i.prefix.to_string()).unwrap_or_default(),
-            vnis: self.vnis.iter().copied().collect(),
+            vnis: self.interest.keys().copied().collect(),
             server_connected: self.connected,
             server_boot_id: self.boot_id.clone().unwrap_or_default(),
-            orchestrator_connected: self.watch.is_some(),
+            orchestrator_connected: self.orchestrators.values().any(Option::is_some),
             pairs,
+            orchestrators: self
+                .orchestrators
+                .iter()
+                .map(|(name, w)| proto::OrchestratorStatus { name: name.clone(), connected: w.is_some() })
+                .collect(),
         }
     }
 
@@ -682,13 +773,60 @@ impl Core {
     // Orchestrator stream
     // --------------------------------------------------------------------------------------------
 
-    fn watch_opened(&mut self, watch: u64, inventory: Vec<proto::SecurityAssociationId>, tx: StepTx) {
-        info!("orchestrator connected, holding {} Security Associations", inventory.len());
-        self.watch = Some(Watch { id: watch, tx });
+    fn is_open(&self, orchestrator: &str) -> bool {
+        self.orchestrators.get(orchestrator).is_some_and(Option::is_some)
+    }
+
+    fn stream_of(&self, watch: u64) -> Option<String> {
+        self.orchestrators.iter().find(|(_, w)| w.as_ref().is_some_and(|w| w.id == watch)).map(|(name, _)| name.clone())
+    }
+
+    /// Makes room for an orchestrator. A third one is refused while two others are connected, and
+    /// takes the place of one that is away otherwise.
+    fn admit(&mut self, orchestrator: &str) -> Result<(), Status> {
+        if self.orchestrators.contains_key(orchestrator) {
+            return Ok(());
+        }
+        if self.orchestrators.len() >= MAX_ORCHESTRATORS {
+            let Some(away) = self.orchestrators.iter().find(|(_, w)| w.is_none()).map(|(name, _)| name.clone()) else {
+                return Err(Status::resource_exhausted(format!("two orchestrators are connected, refusing a third, {orchestrator:?}")));
+            };
+            info!("orchestrator{} takes the place of{}", of(orchestrator), of(&away));
+            self.orchestrators.remove(&away);
+            self.end_interest(&away);
+            for p in self.pairs.values_mut() {
+                p.held.remove(&away);
+            }
+        }
+        self.orchestrators.insert(orchestrator.to_string(), None);
+        Ok(())
+    }
+
+    fn end_interest(&mut self, orchestrator: &str) {
+        let vnis: Vec<u32> = self.interest.iter().filter(|(_, names)| names.contains(orchestrator)).map(|(vni, _)| *vni).collect();
+        for vni in vnis {
+            self.unsubscribe(vni, orchestrator);
+        }
+    }
+
+    /// Nothing waits for an orchestrator that is away, and what it wanted ends with it, unless it
+    /// was the last one: a client stays in its groups while its orchestrator is away (ADR 0014).
+    fn watch_closed(&mut self, orchestrator: &str) {
+        info!("orchestrator{} disconnected", of(orchestrator));
+        self.orchestrators.insert(orchestrator.to_string(), None);
+        if self.orchestrators.values().any(Option::is_some) {
+            self.end_interest(orchestrator);
+        }
+    }
+
+    fn watch_opened(&mut self, watch: u64, orchestrator: String, inventory: Vec<proto::SecurityAssociationId>, tx: StepTx) {
+        info!("orchestrator{} connected, holding {} Security Associations", of(&orchestrator), inventory.len());
+        // the same name replaces the old stream, which may be half dead and would stall steps
+        self.orchestrators.insert(orchestrator.clone(), Some(Watch { id: watch, tx }));
         let Some(identity) = &self.identity else { return };
         let me = identity.prefix;
-        let held: HashSet<SaId> = inventory.iter().filter_map(SaId::from_proto).collect();
-        for sa in &held {
+        let inventory: HashSet<SaId> = inventory.iter().filter_map(SaId::from_proto).collect();
+        for sa in &inventory {
             if !sa.egress {
                 self.avoid_spis.insert(sa.spi);
             }
@@ -698,109 +836,135 @@ impl Core {
         let mut known = HashSet::new();
         let keys: Vec<(u32, HostPrefix)> = self.pairs.keys().copied().collect();
         for key in &keys {
-            let p = self.pairs.get_mut(key).unwrap();
-            if let Some(f) = p.inflight.take() {
+            let Some(h) = self.pairs.get_mut(key).unwrap().held.get_mut(&orchestrator) else { continue };
+            if let Some(f) = h.inflight.take() {
                 let done = match f.action {
-                    Action::AddIngress { sa, .. } => held.contains(&sa),
+                    Action::AddIngress { sa, .. } => inventory.contains(&sa),
                     Action::SetEgress { old, sa, .. } => {
-                        if !held.contains(&sa) && old.is_some_and(|o| !held.contains(&o)) {
-                            p.egress = None;
+                        if !inventory.contains(&sa) && old.is_some_and(|o| !inventory.contains(&o)) {
+                            h.egress = None;
                         }
-                        held.contains(&sa)
+                        inventory.contains(&sa)
                     }
-                    Action::Remove { sa } => !held.contains(&sa),
+                    Action::Remove { sa } => !inventory.contains(&sa),
                 };
                 if done {
-                    self.succeeded(*key, f.action);
+                    self.succeeded(&orchestrator, *key, f.action);
                 }
             }
-            let p = &self.pairs[key];
-            known.extend(p.egress.iter().chain(p.ingress.iter()).map(|i| i.id));
+            known.extend(self.pairs[key].held[&orchestrator].all().map(|i| i.id));
         }
 
-        // associations this client does not know: from before it restarted or regrouped
-        for sa in held.difference(&known) {
+        // associations this orchestrator is not known to hold: from before this client restarted or
+        // regrouped, unless the other orchestrator holds them too
+        for sa in inventory.difference(&known) {
             let (peer, ok) = if sa.egress { (sa.dst, sa.src == me) } else { (sa.src, sa.dst == me) };
             if !ok {
                 warn!("inventory: {sa:?} is not this host's, ignoring it");
                 continue;
             }
             let p = self.pairs.entry((sa.vni, peer)).or_insert_with(Pair::new);
-            let installed = Installed { id: *sa, generation: 0, epoch: 0 };
-            if !self.vnis.contains(&sa.vni) || self.groups.get(&sa.vni).is_none_or(|g| g.mls.is_none()) {
+            let (generation, epoch) = p.held.values().flat_map(Held::all).find(|i| i.id == *sa).map_or((0, 0), Installed::at);
+            let installed = Installed { id: *sa, generation, epoch };
+            if !self.interest.contains_key(&sa.vni) || self.groups.get(&sa.vni).is_none_or(|g| g.mls.is_none()) {
                 // the pair's peer is not known yet
                 p.stale_at.get_or_insert(Instant::now() + self.config.stale_pairs_after);
             }
+            let h = p.held.entry(orchestrator.clone()).or_insert_with(Held::new);
             if sa.egress {
-                if p.egress.is_some() {
+                if h.egress.is_some() {
                     warn!("inventory: a second egress {sa:?}, removing it");
-                    p.ingress.push(installed);
+                    h.ingress.push(installed);
                 } else {
-                    p.egress = Some(installed);
+                    h.egress = Some(installed);
                 }
             } else {
-                p.ingress.push(installed);
+                h.ingress.push(installed);
             }
         }
     }
 
-    fn confirmed(&mut self, step: u64, error: String) {
-        let Some((&key, _)) = self.pairs.iter().find(|(_, p)| p.inflight.as_ref().is_some_and(|f| f.step == step)) else {
+    fn confirmed(&mut self, orchestrator: &str, step: u64, error: String) {
+        let inflight = |p: &Pair| p.held.get(orchestrator).and_then(|h| h.inflight.as_ref()).is_some_and(|f| f.step == step);
+        let Some((&key, _)) = self.pairs.iter().find(|(_, p)| inflight(p)) else {
             return;
         };
-        let p = self.pairs.get_mut(&key).unwrap();
-        let f = p.inflight.take().unwrap();
+        let h = self.pairs.get_mut(&key).unwrap().held.get_mut(orchestrator).unwrap();
+        let f = h.inflight.take().unwrap();
         if error.is_empty() {
-            p.retry_at = None;
-            p.backoff = BACKOFF_START;
-            p.last_error.clear();
-            self.succeeded(key, f.action);
+            h.retry_at = None;
+            h.backoff = BACKOFF_START;
+            h.last_error.clear();
+            self.succeeded(orchestrator, key, f.action);
         } else {
-            warn!("vni {}: step {step} for {} failed, retrying in {:?}: {error}", key.0, key.1, p.backoff);
-            p.retry_at = Some(Instant::now() + p.backoff);
-            p.backoff = (p.backoff * 2).min(BACKOFF_MAX);
-            p.last_error = error;
+            warn!("vni {}: step {step} for {} failed{}, retrying in {:?}: {error}", key.0, key.1, of(orchestrator), h.backoff);
+            h.retry_at = Some(Instant::now() + h.backoff);
+            h.backoff = (h.backoff * 2).min(BACKOFF_MAX);
+            h.last_error = error;
         }
     }
 
-    fn succeeded(&mut self, (vni, peer): (u32, HostPrefix), action: Action) {
-        let p = self.pairs.get_mut(&(vni, peer)).unwrap();
+    fn succeeded(&mut self, orchestrator: &str, (vni, peer): (u32, HostPrefix), action: Action) {
+        let h = self.pairs.get_mut(&(vni, peer)).unwrap().held.get_mut(orchestrator).unwrap();
         match action {
-            Action::AddIngress { sa, generation, epoch } => {
-                p.ingress.push(Installed { id: sa, generation, epoch });
-                if p.target.as_ref().is_some_and(|t| t.at() == (generation, epoch)) {
-                    self.ready.entry((vni, generation, epoch)).or_default().push((peer, sa.spi));
-                }
-            }
+            Action::AddIngress { sa, generation, epoch } => h.ingress.push(Installed { id: sa, generation, epoch }),
             Action::SetEgress { sa, generation, epoch, .. } => {
-                info!("vni {vni}: egress towards {peer} switched to epoch {epoch}");
-                p.egress = Some(Installed { id: sa, generation, epoch });
-                self.switched.entry((vni, generation, epoch)).or_default().push(peer);
+                info!("vni {vni}: egress towards {peer} switched to epoch {epoch}{}", of(orchestrator));
+                h.egress = Some(Installed { id: sa, generation, epoch });
             }
             Action::Remove { sa } => {
-                p.ingress.retain(|i| i.id != sa);
-                if p.egress.is_some_and(|e| e.id == sa) {
-                    p.egress = None;
+                h.ingress.retain(|i| i.id != sa);
+                if h.egress.is_some_and(|e| e.id == sa) {
+                    h.egress = None;
                 }
             }
         }
     }
 
-    /// Sends every pair's next step that may go now.
+    /// Collects the Ready and Switched that every connected orchestrator has earned: the peer may
+    /// send under an ingress once all hold it, and may remove what it replaced once all have moved
+    /// on. One that is away is not waited for, and catches up when it returns.
+    fn release_group_messages(&mut self) {
+        let open: Vec<&String> = self.orchestrators.iter().filter(|(_, w)| w.is_some()).map(|(name, _)| name).collect();
+        if open.is_empty() {
+            return;
+        }
+        for (&(vni, peer), p) in self.pairs.iter_mut() {
+            if let Some(t) = &p.target {
+                let installed = |name: &&String| p.held.get(*name).is_some_and(|h| h.ingress.iter().any(|i| i.at() == t.at()));
+                if p.ready_sent != Some(t.at()) && open.iter().all(installed) {
+                    if let Some(spi) = t.ingress_spi {
+                        let (generation, epoch) = t.at();
+                        self.ready.entry((vni, generation, epoch)).or_default().push((peer, spi));
+                        p.ready_sent = Some(t.at());
+                    }
+                }
+            }
+            // None, for an orchestrator without an egress, comes first
+            let moved = open.iter().map(|name| p.held.get(*name).and_then(|h| h.egress).map(|e| e.at())).min().flatten();
+            if let Some((generation, epoch)) = moved.filter(|at| at.0 > 0 && p.switched_sent.is_none_or(|sent| sent < *at)) {
+                self.switched.entry((vni, generation, epoch)).or_default().push(peer);
+                p.switched_sent = Some((generation, epoch));
+            }
+        }
+    }
+
+    /// Sends every pair's next step that may go now, to each orchestrator according to what it holds.
     fn drive(&mut self) {
-        let Some(watch) = &self.watch else { return };
         let Some(identity) = &self.identity else { return };
         let me = identity.prefix;
+        let open: Vec<(&String, &StepTx)> = self.orchestrators.iter().filter_map(|(name, w)| w.as_ref().map(|w| (name, &w.tx))).collect();
+        if open.is_empty() {
+            return;
+        }
         let now = Instant::now();
         let mut used: HashSet<u32> = self.avoid_spis.clone();
         for p in self.pairs.values() {
-            used.extend(p.ingress.iter().map(|i| i.id.spi));
+            used.extend(p.held.values().flat_map(|h| h.ingress.iter()).map(|i| i.id.spi));
             used.extend(p.target.as_ref().and_then(|t| t.ingress_spi));
         }
+        let nothing = Held::new();
         for (&(vni, peer), p) in self.pairs.iter_mut() {
-            if p.inflight.is_some() || p.retry_at.is_some_and(|t| t > now) {
-                continue;
-            }
             if let Some(t) = p.target.as_mut() {
                 if t.ingress_spi.is_none() && !p.ending {
                     let spi = mls::pick_spi(|s| used.contains(&s), rand::random);
@@ -808,26 +972,33 @@ impl Core {
                     t.ingress_spi = Some(spi);
                 }
             }
-            let Some(action) = p.next_action(vni, me, peer) else { continue };
-            let step = self.next_step;
-            self.next_step += 1;
-            let a = match action {
-                Action::AddIngress { sa, .. } => {
-                    step::Action::Add(proto::AddSecurityAssociation { sa: Some(sa_proto(sa, &p.target.as_ref().unwrap().ingress)) })
+            for &(name, tx) in &open {
+                let h = p.held.get(name).unwrap_or(&nothing);
+                if h.inflight.is_some() || h.retry_at.is_some_and(|t| t > now) {
+                    continue;
                 }
-                Action::SetEgress { old: None, sa, .. } => {
-                    step::Action::Add(proto::AddSecurityAssociation { sa: Some(sa_proto(sa, &p.target.as_ref().unwrap().egress)) })
-                }
-                Action::SetEgress { old: Some(old), sa, .. } => step::Action::Update(proto::UpdateSecurityAssociation {
-                    old: Some(old.to_proto()),
-                    new: Some(sa_proto(sa, &p.target.as_ref().unwrap().egress)),
-                }),
-                Action::Remove { sa } => step::Action::Remove(proto::RemoveSecurityAssociation { id: Some(sa.to_proto()) }),
-            };
-            debug!("vni {vni}: step {step} for {peer}: {action:?}");
-            let _ = watch.tx.send(Ok(proto::Step { step, action: Some(a) }));
-            p.inflight = Some(Inflight { step, action });
-            p.retry_at = None;
+                let Some(action) = p.next_action(h, vni, me, peer) else { continue };
+                let step = self.next_step;
+                self.next_step += 1;
+                let a = match action {
+                    Action::AddIngress { sa, .. } => {
+                        step::Action::Add(proto::AddSecurityAssociation { sa: Some(sa_proto(sa, &p.target.as_ref().unwrap().ingress)) })
+                    }
+                    Action::SetEgress { old: None, sa, .. } => {
+                        step::Action::Add(proto::AddSecurityAssociation { sa: Some(sa_proto(sa, &p.target.as_ref().unwrap().egress)) })
+                    }
+                    Action::SetEgress { old: Some(old), sa, .. } => step::Action::Update(proto::UpdateSecurityAssociation {
+                        old: Some(old.to_proto()),
+                        new: Some(sa_proto(sa, &p.target.as_ref().unwrap().egress)),
+                    }),
+                    Action::Remove { sa } => step::Action::Remove(proto::RemoveSecurityAssociation { id: Some(sa.to_proto()) }),
+                };
+                debug!("vni {vni}: step {step} for {peer}{}: {action:?}", of(name));
+                let _ = tx.send(Ok(proto::Step { step, action: Some(a) }));
+                let h = p.held.entry(name.clone()).or_insert_with(Held::new);
+                h.inflight = Some(Inflight { step, action });
+                h.retry_at = None;
+            }
         }
         self.pairs.retain(|_, p| !(p.ending && p.is_empty()));
     }
@@ -903,7 +1074,7 @@ impl Core {
         for vni in std::mem::take(&mut self.leaving) {
             self.send(client_message::Message::Leave(proto::Leave { vni }));
         }
-        let vnis: Vec<u32> = self.vnis.iter().copied().collect();
+        let vnis: Vec<u32> = self.interest.keys().copied().collect();
         for vni in vnis {
             let g = &self.groups[&vni];
             if g.mls.is_some() {
@@ -935,7 +1106,7 @@ impl Core {
     }
 
     fn create_group(&mut self, vni: u32) -> Result<()> {
-        if !self.vnis.contains(&vni) {
+        if !self.interest.contains_key(&vni) {
             return Ok(());
         }
         let mls = self.identity.as_ref().unwrap().create_group()?;
@@ -953,7 +1124,7 @@ impl Core {
     }
 
     fn welcomed(&mut self, w: proto::Welcomed) -> Result<()> {
-        if !self.vnis.contains(&w.vni) {
+        if !self.interest.contains_key(&w.vni) {
             // added by a commit under way when this host unsubscribed: leave again
             self.send(client_message::Message::Leave(proto::Leave { vni: w.vni }));
             return Ok(());
@@ -988,7 +1159,7 @@ impl Core {
     fn rejoin(&mut self, vni: u32) {
         let Some(mut g) = self.groups.insert(vni, Group::new()) else { return };
         self.delete_mls(&mut g);
-        if self.vnis.contains(&vni) {
+        if self.interest.contains_key(&vni) {
             info!("vni {vni}: joining the VNI group again");
             self.send(client_message::Message::Join(proto::Join { vni }));
         } else {
@@ -1279,6 +1450,11 @@ fn end_pair(p: &mut Pair) {
     p.peer_ready = None;
     p.peer_switched = None;
     p.stale_at = None;
+}
+
+/// For log messages: which orchestrator, when it has a name.
+fn of(orchestrator: &str) -> String {
+    if orchestrator.is_empty() { String::new() } else { format!(" {orchestrator}") }
 }
 
 fn cmsg(m: client_message::Message) -> proto::ClientMessage {

@@ -374,8 +374,10 @@ func (*InitResponse) Descriptor() ([]byte, []int) {
 }
 
 type SubscribeRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Vni           uint32                 `protobuf:"varint,1,opt,name=vni,proto3" json:"vni,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Vni   uint32                 `protobuf:"varint,1,opt,name=vni,proto3" json:"vni,omitempty"`
+	// the name the orchestrator gives its stream, see Inventory
+	Orchestrator  string `protobuf:"bytes,2,opt,name=orchestrator,proto3" json:"orchestrator,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -417,6 +419,13 @@ func (x *SubscribeRequest) GetVni() uint32 {
 	return 0
 }
 
+func (x *SubscribeRequest) GetOrchestrator() string {
+	if x != nil {
+		return x.Orchestrator
+	}
+	return ""
+}
+
 type SubscribeResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -454,8 +463,10 @@ func (*SubscribeResponse) Descriptor() ([]byte, []int) {
 }
 
 type UnsubscribeRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Vni           uint32                 `protobuf:"varint,1,opt,name=vni,proto3" json:"vni,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Vni   uint32                 `protobuf:"varint,1,opt,name=vni,proto3" json:"vni,omitempty"`
+	// the name the orchestrator gives its stream, see Inventory
+	Orchestrator  string `protobuf:"bytes,2,opt,name=orchestrator,proto3" json:"orchestrator,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -497,6 +508,13 @@ func (x *UnsubscribeRequest) GetVni() uint32 {
 	return 0
 }
 
+func (x *UnsubscribeRequest) GetOrchestrator() string {
+	if x != nil {
+		return x.Orchestrator
+	}
+	return ""
+}
+
 type UnsubscribeResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -534,7 +552,9 @@ func (*UnsubscribeResponse) Descriptor() ([]byte, []int) {
 }
 
 type DataplaneResetRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// the name the orchestrator gives its stream, see Inventory
+	Orchestrator  string `protobuf:"bytes,1,opt,name=orchestrator,proto3" json:"orchestrator,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -567,6 +587,13 @@ func (x *DataplaneResetRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use DataplaneResetRequest.ProtoReflect.Descriptor instead.
 func (*DataplaneResetRequest) Descriptor() ([]byte, []int) {
 	return file_mlsbond_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *DataplaneResetRequest) GetOrchestrator() string {
+	if x != nil {
+		return x.Orchestrator
+	}
+	return ""
 }
 
 type DataplaneResetResponse struct {
@@ -851,10 +878,12 @@ func (*WatchRequest_Inventory) isWatchRequest_Request() {}
 
 func (*WatchRequest_Confirmation) isWatchRequest_Request() {}
 
-// Inventory lists the Security Associations the orchestrator holds, without keys.
+// Inventory lists the Security Associations the orchestrator holds, without keys, and names the
+// stream. A host with one orchestrator can leave the name empty.
 type Inventory struct {
 	state         protoimpl.MessageState   `protogen:"open.v1"`
 	Ids           []*SecurityAssociationID `protobuf:"bytes,1,rep,name=ids,proto3" json:"ids,omitempty"`
+	Orchestrator  string                   `protobuf:"bytes,2,opt,name=orchestrator,proto3" json:"orchestrator,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -894,6 +923,13 @@ func (x *Inventory) GetIds() []*SecurityAssociationID {
 		return x.Ids
 	}
 	return nil
+}
+
+func (x *Inventory) GetOrchestrator() string {
+	if x != nil {
+		return x.Orchestrator
+	}
+	return ""
 }
 
 type Confirmation struct {
@@ -1197,7 +1233,9 @@ func (x *RemoveSecurityAssociation) GetId() *SecurityAssociationID {
 }
 
 type StatusRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// whose side the pairs are told from, see Inventory
+	Orchestrator  string `protobuf:"bytes,1,opt,name=orchestrator,proto3" json:"orchestrator,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1232,6 +1270,65 @@ func (*StatusRequest) Descriptor() ([]byte, []int) {
 	return file_mlsbond_proto_rawDescGZIP(), []int{17}
 }
 
+func (x *StatusRequest) GetOrchestrator() string {
+	if x != nil {
+		return x.Orchestrator
+	}
+	return ""
+}
+
+type OrchestratorStatus struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Connected     bool                   `protobuf:"varint,2,opt,name=connected,proto3" json:"connected,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OrchestratorStatus) Reset() {
+	*x = OrchestratorStatus{}
+	mi := &file_mlsbond_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OrchestratorStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OrchestratorStatus) ProtoMessage() {}
+
+func (x *OrchestratorStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_mlsbond_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OrchestratorStatus.ProtoReflect.Descriptor instead.
+func (*OrchestratorStatus) Descriptor() ([]byte, []int) {
+	return file_mlsbond_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *OrchestratorStatus) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *OrchestratorStatus) GetConnected() bool {
+	if x != nil {
+		return x.Connected
+	}
+	return false
+}
+
 type PairStatus struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Vni            uint32                 `protobuf:"varint,1,opt,name=vni,proto3" json:"vni,omitempty"`
@@ -1251,7 +1348,7 @@ type PairStatus struct {
 
 func (x *PairStatus) Reset() {
 	*x = PairStatus{}
-	mi := &file_mlsbond_proto_msgTypes[18]
+	mi := &file_mlsbond_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1263,7 +1360,7 @@ func (x *PairStatus) String() string {
 func (*PairStatus) ProtoMessage() {}
 
 func (x *PairStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[18]
+	mi := &file_mlsbond_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1276,7 +1373,7 @@ func (x *PairStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PairStatus.ProtoReflect.Descriptor instead.
 func (*PairStatus) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{18}
+	return file_mlsbond_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *PairStatus) GetVni() uint32 {
@@ -1336,21 +1433,24 @@ func (x *PairStatus) GetIngressSpis() []uint32 {
 }
 
 type StatusResponse struct {
-	state                 protoimpl.MessageState `protogen:"open.v1"`
-	ClientName            string                 `protobuf:"bytes,1,opt,name=client_name,json=clientName,proto3" json:"client_name,omitempty"`
-	HostPrefix            string                 `protobuf:"bytes,2,opt,name=host_prefix,json=hostPrefix,proto3" json:"host_prefix,omitempty"`
-	Vnis                  []uint32               `protobuf:"varint,3,rep,packed,name=vnis,proto3" json:"vnis,omitempty"`
-	ServerConnected       bool                   `protobuf:"varint,4,opt,name=server_connected,json=serverConnected,proto3" json:"server_connected,omitempty"`
-	ServerBootId          string                 `protobuf:"bytes,5,opt,name=server_boot_id,json=serverBootId,proto3" json:"server_boot_id,omitempty"`
-	OrchestratorConnected bool                   `protobuf:"varint,6,opt,name=orchestrator_connected,json=orchestratorConnected,proto3" json:"orchestrator_connected,omitempty"`
-	Pairs                 []*PairStatus          `protobuf:"bytes,7,rep,name=pairs,proto3" json:"pairs,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	ClientName      string                 `protobuf:"bytes,1,opt,name=client_name,json=clientName,proto3" json:"client_name,omitempty"`
+	HostPrefix      string                 `protobuf:"bytes,2,opt,name=host_prefix,json=hostPrefix,proto3" json:"host_prefix,omitempty"`
+	Vnis            []uint32               `protobuf:"varint,3,rep,packed,name=vnis,proto3" json:"vnis,omitempty"`
+	ServerConnected bool                   `protobuf:"varint,4,opt,name=server_connected,json=serverConnected,proto3" json:"server_connected,omitempty"`
+	ServerBootId    string                 `protobuf:"bytes,5,opt,name=server_boot_id,json=serverBootId,proto3" json:"server_boot_id,omitempty"`
+	// whether any orchestrator is
+	OrchestratorConnected bool          `protobuf:"varint,6,opt,name=orchestrator_connected,json=orchestratorConnected,proto3" json:"orchestrator_connected,omitempty"`
+	Pairs                 []*PairStatus `protobuf:"bytes,7,rep,name=pairs,proto3" json:"pairs,omitempty"`
+	// the orchestrators known, also those away
+	Orchestrators []*OrchestratorStatus `protobuf:"bytes,8,rep,name=orchestrators,proto3" json:"orchestrators,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *StatusResponse) Reset() {
 	*x = StatusResponse{}
-	mi := &file_mlsbond_proto_msgTypes[19]
+	mi := &file_mlsbond_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1362,7 +1462,7 @@ func (x *StatusResponse) String() string {
 func (*StatusResponse) ProtoMessage() {}
 
 func (x *StatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[19]
+	mi := &file_mlsbond_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1375,7 +1475,7 @@ func (x *StatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusResponse.ProtoReflect.Descriptor instead.
 func (*StatusResponse) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{19}
+	return file_mlsbond_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *StatusResponse) GetClientName() string {
@@ -1427,6 +1527,13 @@ func (x *StatusResponse) GetPairs() []*PairStatus {
 	return nil
 }
 
+func (x *StatusResponse) GetOrchestrators() []*OrchestratorStatus {
+	if x != nil {
+		return x.Orchestrators
+	}
+	return nil
+}
+
 type ClientMessage struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Message:
@@ -1449,7 +1556,7 @@ type ClientMessage struct {
 
 func (x *ClientMessage) Reset() {
 	*x = ClientMessage{}
-	mi := &file_mlsbond_proto_msgTypes[20]
+	mi := &file_mlsbond_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1461,7 +1568,7 @@ func (x *ClientMessage) String() string {
 func (*ClientMessage) ProtoMessage() {}
 
 func (x *ClientMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[20]
+	mi := &file_mlsbond_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1474,7 +1581,7 @@ func (x *ClientMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClientMessage.ProtoReflect.Descriptor instead.
 func (*ClientMessage) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{20}
+	return file_mlsbond_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ClientMessage) GetMessage() isClientMessage_Message {
@@ -1667,7 +1774,7 @@ type Hello struct {
 
 func (x *Hello) Reset() {
 	*x = Hello{}
-	mi := &file_mlsbond_proto_msgTypes[21]
+	mi := &file_mlsbond_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1679,7 +1786,7 @@ func (x *Hello) String() string {
 func (*Hello) ProtoMessage() {}
 
 func (x *Hello) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[21]
+	mi := &file_mlsbond_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1692,7 +1799,7 @@ func (x *Hello) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Hello.ProtoReflect.Descriptor instead.
 func (*Hello) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{21}
+	return file_mlsbond_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *Hello) GetClientName() string {
@@ -1733,7 +1840,7 @@ type KeyPackages struct {
 
 func (x *KeyPackages) Reset() {
 	*x = KeyPackages{}
-	mi := &file_mlsbond_proto_msgTypes[22]
+	mi := &file_mlsbond_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1745,7 +1852,7 @@ func (x *KeyPackages) String() string {
 func (*KeyPackages) ProtoMessage() {}
 
 func (x *KeyPackages) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[22]
+	mi := &file_mlsbond_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1758,7 +1865,7 @@ func (x *KeyPackages) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyPackages.ProtoReflect.Descriptor instead.
 func (*KeyPackages) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{22}
+	return file_mlsbond_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *KeyPackages) GetKeyPackages() [][]byte {
@@ -1778,7 +1885,7 @@ type Join struct {
 
 func (x *Join) Reset() {
 	*x = Join{}
-	mi := &file_mlsbond_proto_msgTypes[23]
+	mi := &file_mlsbond_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1790,7 +1897,7 @@ func (x *Join) String() string {
 func (*Join) ProtoMessage() {}
 
 func (x *Join) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[23]
+	mi := &file_mlsbond_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1803,7 +1910,7 @@ func (x *Join) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Join.ProtoReflect.Descriptor instead.
 func (*Join) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{23}
+	return file_mlsbond_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *Join) GetVni() uint32 {
@@ -1824,7 +1931,7 @@ type Resume struct {
 
 func (x *Resume) Reset() {
 	*x = Resume{}
-	mi := &file_mlsbond_proto_msgTypes[24]
+	mi := &file_mlsbond_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1836,7 +1943,7 @@ func (x *Resume) String() string {
 func (*Resume) ProtoMessage() {}
 
 func (x *Resume) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[24]
+	mi := &file_mlsbond_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1849,7 +1956,7 @@ func (x *Resume) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Resume.ProtoReflect.Descriptor instead.
 func (*Resume) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{24}
+	return file_mlsbond_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *Resume) GetVni() uint32 {
@@ -1875,7 +1982,7 @@ type Leave struct {
 
 func (x *Leave) Reset() {
 	*x = Leave{}
-	mi := &file_mlsbond_proto_msgTypes[25]
+	mi := &file_mlsbond_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1887,7 +1994,7 @@ func (x *Leave) String() string {
 func (*Leave) ProtoMessage() {}
 
 func (x *Leave) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[25]
+	mi := &file_mlsbond_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1900,7 +2007,7 @@ func (x *Leave) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Leave.ProtoReflect.Descriptor instead.
 func (*Leave) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{25}
+	return file_mlsbond_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *Leave) GetVni() uint32 {
@@ -1919,7 +2026,7 @@ type GroupCreated struct {
 
 func (x *GroupCreated) Reset() {
 	*x = GroupCreated{}
-	mi := &file_mlsbond_proto_msgTypes[26]
+	mi := &file_mlsbond_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1931,7 +2038,7 @@ func (x *GroupCreated) String() string {
 func (*GroupCreated) ProtoMessage() {}
 
 func (x *GroupCreated) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[26]
+	mi := &file_mlsbond_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1944,7 +2051,7 @@ func (x *GroupCreated) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupCreated.ProtoReflect.Descriptor instead.
 func (*GroupCreated) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{26}
+	return file_mlsbond_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *GroupCreated) GetVni() uint32 {
@@ -1968,7 +2075,7 @@ type Commit struct {
 
 func (x *Commit) Reset() {
 	*x = Commit{}
-	mi := &file_mlsbond_proto_msgTypes[27]
+	mi := &file_mlsbond_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1980,7 +2087,7 @@ func (x *Commit) String() string {
 func (*Commit) ProtoMessage() {}
 
 func (x *Commit) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[27]
+	mi := &file_mlsbond_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1993,7 +2100,7 @@ func (x *Commit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Commit.ProtoReflect.Descriptor instead.
 func (*Commit) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{27}
+	return file_mlsbond_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *Commit) GetVni() uint32 {
@@ -2037,7 +2144,7 @@ type CommitFailed struct {
 
 func (x *CommitFailed) Reset() {
 	*x = CommitFailed{}
-	mi := &file_mlsbond_proto_msgTypes[28]
+	mi := &file_mlsbond_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2049,7 +2156,7 @@ func (x *CommitFailed) String() string {
 func (*CommitFailed) ProtoMessage() {}
 
 func (x *CommitFailed) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[28]
+	mi := &file_mlsbond_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2062,7 +2169,7 @@ func (x *CommitFailed) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommitFailed.ProtoReflect.Descriptor instead.
 func (*CommitFailed) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{28}
+	return file_mlsbond_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *CommitFailed) GetVni() uint32 {
@@ -2109,7 +2216,7 @@ type GroupMessage struct {
 
 func (x *GroupMessage) Reset() {
 	*x = GroupMessage{}
-	mi := &file_mlsbond_proto_msgTypes[29]
+	mi := &file_mlsbond_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2121,7 +2228,7 @@ func (x *GroupMessage) String() string {
 func (*GroupMessage) ProtoMessage() {}
 
 func (x *GroupMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[29]
+	mi := &file_mlsbond_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2134,7 +2241,7 @@ func (x *GroupMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupMessage.ProtoReflect.Descriptor instead.
 func (*GroupMessage) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{29}
+	return file_mlsbond_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *GroupMessage) GetVni() uint32 {
@@ -2182,7 +2289,7 @@ type Ack struct {
 
 func (x *Ack) Reset() {
 	*x = Ack{}
-	mi := &file_mlsbond_proto_msgTypes[30]
+	mi := &file_mlsbond_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2194,7 +2301,7 @@ func (x *Ack) String() string {
 func (*Ack) ProtoMessage() {}
 
 func (x *Ack) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[30]
+	mi := &file_mlsbond_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2207,7 +2314,7 @@ func (x *Ack) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ack.ProtoReflect.Descriptor instead.
 func (*Ack) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{30}
+	return file_mlsbond_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *Ack) GetVni() uint32 {
@@ -2239,7 +2346,7 @@ type GroupApplication struct {
 
 func (x *GroupApplication) Reset() {
 	*x = GroupApplication{}
-	mi := &file_mlsbond_proto_msgTypes[31]
+	mi := &file_mlsbond_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2251,7 +2358,7 @@ func (x *GroupApplication) String() string {
 func (*GroupApplication) ProtoMessage() {}
 
 func (x *GroupApplication) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[31]
+	mi := &file_mlsbond_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2264,7 +2371,7 @@ func (x *GroupApplication) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupApplication.ProtoReflect.Descriptor instead.
 func (*GroupApplication) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{31}
+	return file_mlsbond_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *GroupApplication) GetMessage() isGroupApplication_Message {
@@ -2320,7 +2427,7 @@ type Ready struct {
 
 func (x *Ready) Reset() {
 	*x = Ready{}
-	mi := &file_mlsbond_proto_msgTypes[32]
+	mi := &file_mlsbond_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2332,7 +2439,7 @@ func (x *Ready) String() string {
 func (*Ready) ProtoMessage() {}
 
 func (x *Ready) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[32]
+	mi := &file_mlsbond_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2345,7 +2452,7 @@ func (x *Ready) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ready.ProtoReflect.Descriptor instead.
 func (*Ready) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{32}
+	return file_mlsbond_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *Ready) GetEpoch() uint64 {
@@ -2372,7 +2479,7 @@ type ReadySPI struct {
 
 func (x *ReadySPI) Reset() {
 	*x = ReadySPI{}
-	mi := &file_mlsbond_proto_msgTypes[33]
+	mi := &file_mlsbond_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2384,7 +2491,7 @@ func (x *ReadySPI) String() string {
 func (*ReadySPI) ProtoMessage() {}
 
 func (x *ReadySPI) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[33]
+	mi := &file_mlsbond_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2397,7 +2504,7 @@ func (x *ReadySPI) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadySPI.ProtoReflect.Descriptor instead.
 func (*ReadySPI) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{33}
+	return file_mlsbond_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ReadySPI) GetPeerUnderlay() []byte {
@@ -2425,7 +2532,7 @@ type Switched struct {
 
 func (x *Switched) Reset() {
 	*x = Switched{}
-	mi := &file_mlsbond_proto_msgTypes[34]
+	mi := &file_mlsbond_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2437,7 +2544,7 @@ func (x *Switched) String() string {
 func (*Switched) ProtoMessage() {}
 
 func (x *Switched) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[34]
+	mi := &file_mlsbond_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2450,7 +2557,7 @@ func (x *Switched) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Switched.ProtoReflect.Descriptor instead.
 func (*Switched) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{34}
+	return file_mlsbond_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *Switched) GetEpoch() uint64 {
@@ -2476,7 +2583,7 @@ type ResetRequest struct {
 
 func (x *ResetRequest) Reset() {
 	*x = ResetRequest{}
-	mi := &file_mlsbond_proto_msgTypes[35]
+	mi := &file_mlsbond_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2488,7 +2595,7 @@ func (x *ResetRequest) String() string {
 func (*ResetRequest) ProtoMessage() {}
 
 func (x *ResetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[35]
+	mi := &file_mlsbond_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2501,7 +2608,7 @@ func (x *ResetRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResetRequest.ProtoReflect.Descriptor instead.
 func (*ResetRequest) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{35}
+	return file_mlsbond_proto_rawDescGZIP(), []int{36}
 }
 
 type ServerMessage struct {
@@ -2524,7 +2631,7 @@ type ServerMessage struct {
 
 func (x *ServerMessage) Reset() {
 	*x = ServerMessage{}
-	mi := &file_mlsbond_proto_msgTypes[36]
+	mi := &file_mlsbond_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2536,7 +2643,7 @@ func (x *ServerMessage) String() string {
 func (*ServerMessage) ProtoMessage() {}
 
 func (x *ServerMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[36]
+	mi := &file_mlsbond_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2549,7 +2656,7 @@ func (x *ServerMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerMessage.ProtoReflect.Descriptor instead.
 func (*ServerMessage) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{36}
+	return file_mlsbond_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *ServerMessage) GetMessage() isServerMessage_Message {
@@ -2709,7 +2816,7 @@ type HelloAck struct {
 
 func (x *HelloAck) Reset() {
 	*x = HelloAck{}
-	mi := &file_mlsbond_proto_msgTypes[37]
+	mi := &file_mlsbond_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2721,7 +2828,7 @@ func (x *HelloAck) String() string {
 func (*HelloAck) ProtoMessage() {}
 
 func (x *HelloAck) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[37]
+	mi := &file_mlsbond_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2734,7 +2841,7 @@ func (x *HelloAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HelloAck.ProtoReflect.Descriptor instead.
 func (*HelloAck) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{37}
+	return file_mlsbond_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *HelloAck) GetBootId() string {
@@ -2760,7 +2867,7 @@ type CreateGroup struct {
 
 func (x *CreateGroup) Reset() {
 	*x = CreateGroup{}
-	mi := &file_mlsbond_proto_msgTypes[38]
+	mi := &file_mlsbond_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2772,7 +2879,7 @@ func (x *CreateGroup) String() string {
 func (*CreateGroup) ProtoMessage() {}
 
 func (x *CreateGroup) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[38]
+	mi := &file_mlsbond_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2785,7 +2892,7 @@ func (x *CreateGroup) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateGroup.ProtoReflect.Descriptor instead.
 func (*CreateGroup) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{38}
+	return file_mlsbond_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *CreateGroup) GetVni() uint32 {
@@ -2807,7 +2914,7 @@ type Welcomed struct {
 
 func (x *Welcomed) Reset() {
 	*x = Welcomed{}
-	mi := &file_mlsbond_proto_msgTypes[39]
+	mi := &file_mlsbond_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2819,7 +2926,7 @@ func (x *Welcomed) String() string {
 func (*Welcomed) ProtoMessage() {}
 
 func (x *Welcomed) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[39]
+	mi := &file_mlsbond_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2832,7 +2939,7 @@ func (x *Welcomed) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Welcomed.ProtoReflect.Descriptor instead.
 func (*Welcomed) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{39}
+	return file_mlsbond_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *Welcomed) GetVni() uint32 {
@@ -2872,7 +2979,7 @@ type Entry struct {
 
 func (x *Entry) Reset() {
 	*x = Entry{}
-	mi := &file_mlsbond_proto_msgTypes[40]
+	mi := &file_mlsbond_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2884,7 +2991,7 @@ func (x *Entry) String() string {
 func (*Entry) ProtoMessage() {}
 
 func (x *Entry) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[40]
+	mi := &file_mlsbond_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2897,7 +3004,7 @@ func (x *Entry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Entry.ProtoReflect.Descriptor instead.
 func (*Entry) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{40}
+	return file_mlsbond_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *Entry) GetVni() uint32 {
@@ -2966,7 +3073,7 @@ type CommitEntry struct {
 
 func (x *CommitEntry) Reset() {
 	*x = CommitEntry{}
-	mi := &file_mlsbond_proto_msgTypes[41]
+	mi := &file_mlsbond_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2978,7 +3085,7 @@ func (x *CommitEntry) String() string {
 func (*CommitEntry) ProtoMessage() {}
 
 func (x *CommitEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[41]
+	mi := &file_mlsbond_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2991,7 +3098,7 @@ func (x *CommitEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommitEntry.ProtoReflect.Descriptor instead.
 func (*CommitEntry) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{41}
+	return file_mlsbond_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *CommitEntry) GetWork() uint64 {
@@ -3025,7 +3132,7 @@ type Rejoin struct {
 
 func (x *Rejoin) Reset() {
 	*x = Rejoin{}
-	mi := &file_mlsbond_proto_msgTypes[42]
+	mi := &file_mlsbond_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3037,7 +3144,7 @@ func (x *Rejoin) String() string {
 func (*Rejoin) ProtoMessage() {}
 
 func (x *Rejoin) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[42]
+	mi := &file_mlsbond_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3050,7 +3157,7 @@ func (x *Rejoin) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Rejoin.ProtoReflect.Descriptor instead.
 func (*Rejoin) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{42}
+	return file_mlsbond_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *Rejoin) GetVni() uint32 {
@@ -3072,7 +3179,7 @@ type Scope struct {
 
 func (x *Scope) Reset() {
 	*x = Scope{}
-	mi := &file_mlsbond_proto_msgTypes[43]
+	mi := &file_mlsbond_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3084,7 +3191,7 @@ func (x *Scope) String() string {
 func (*Scope) ProtoMessage() {}
 
 func (x *Scope) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[43]
+	mi := &file_mlsbond_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3097,7 +3204,7 @@ func (x *Scope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Scope.ProtoReflect.Descriptor instead.
 func (*Scope) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{43}
+	return file_mlsbond_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *Scope) GetKind() ScopeKind {
@@ -3134,7 +3241,7 @@ type CommitWork struct {
 
 func (x *CommitWork) Reset() {
 	*x = CommitWork{}
-	mi := &file_mlsbond_proto_msgTypes[44]
+	mi := &file_mlsbond_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3146,7 +3253,7 @@ func (x *CommitWork) String() string {
 func (*CommitWork) ProtoMessage() {}
 
 func (x *CommitWork) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[44]
+	mi := &file_mlsbond_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3159,7 +3266,7 @@ func (x *CommitWork) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommitWork.ProtoReflect.Descriptor instead.
 func (*CommitWork) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{44}
+	return file_mlsbond_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *CommitWork) GetVni() uint32 {
@@ -3227,7 +3334,7 @@ type KeyPackagesUsed struct {
 
 func (x *KeyPackagesUsed) Reset() {
 	*x = KeyPackagesUsed{}
-	mi := &file_mlsbond_proto_msgTypes[45]
+	mi := &file_mlsbond_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3239,7 +3346,7 @@ func (x *KeyPackagesUsed) String() string {
 func (*KeyPackagesUsed) ProtoMessage() {}
 
 func (x *KeyPackagesUsed) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[45]
+	mi := &file_mlsbond_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3252,7 +3359,7 @@ func (x *KeyPackagesUsed) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyPackagesUsed.ProtoReflect.Descriptor instead.
 func (*KeyPackagesUsed) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{45}
+	return file_mlsbond_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *KeyPackagesUsed) GetCount() uint32 {
@@ -3272,7 +3379,7 @@ type Accepted struct {
 
 func (x *Accepted) Reset() {
 	*x = Accepted{}
-	mi := &file_mlsbond_proto_msgTypes[46]
+	mi := &file_mlsbond_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3284,7 +3391,7 @@ func (x *Accepted) String() string {
 func (*Accepted) ProtoMessage() {}
 
 func (x *Accepted) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[46]
+	mi := &file_mlsbond_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3297,7 +3404,7 @@ func (x *Accepted) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Accepted.ProtoReflect.Descriptor instead.
 func (*Accepted) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{46}
+	return file_mlsbond_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *Accepted) GetVni() uint32 {
@@ -3325,7 +3432,7 @@ type ProposeUpdate struct {
 
 func (x *ProposeUpdate) Reset() {
 	*x = ProposeUpdate{}
-	mi := &file_mlsbond_proto_msgTypes[47]
+	mi := &file_mlsbond_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3337,7 +3444,7 @@ func (x *ProposeUpdate) String() string {
 func (*ProposeUpdate) ProtoMessage() {}
 
 func (x *ProposeUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[47]
+	mi := &file_mlsbond_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3350,7 +3457,7 @@ func (x *ProposeUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProposeUpdate.ProtoReflect.Descriptor instead.
 func (*ProposeUpdate) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{47}
+	return file_mlsbond_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *ProposeUpdate) GetVni() uint32 {
@@ -3378,7 +3485,7 @@ type RekeyPolicy struct {
 
 func (x *RekeyPolicy) Reset() {
 	*x = RekeyPolicy{}
-	mi := &file_mlsbond_proto_msgTypes[48]
+	mi := &file_mlsbond_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3390,7 +3497,7 @@ func (x *RekeyPolicy) String() string {
 func (*RekeyPolicy) ProtoMessage() {}
 
 func (x *RekeyPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[48]
+	mi := &file_mlsbond_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3403,7 +3510,7 @@ func (x *RekeyPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RekeyPolicy.ProtoReflect.Descriptor instead.
 func (*RekeyPolicy) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{48}
+	return file_mlsbond_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *RekeyPolicy) GetIntervalSeconds() uint32 {
@@ -3428,7 +3535,7 @@ type GetPolicyRequest struct {
 
 func (x *GetPolicyRequest) Reset() {
 	*x = GetPolicyRequest{}
-	mi := &file_mlsbond_proto_msgTypes[49]
+	mi := &file_mlsbond_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3440,7 +3547,7 @@ func (x *GetPolicyRequest) String() string {
 func (*GetPolicyRequest) ProtoMessage() {}
 
 func (x *GetPolicyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[49]
+	mi := &file_mlsbond_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3453,7 +3560,7 @@ func (x *GetPolicyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPolicyRequest.ProtoReflect.Descriptor instead.
 func (*GetPolicyRequest) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{49}
+	return file_mlsbond_proto_rawDescGZIP(), []int{50}
 }
 
 type GetPolicyResponse struct {
@@ -3466,7 +3573,7 @@ type GetPolicyResponse struct {
 
 func (x *GetPolicyResponse) Reset() {
 	*x = GetPolicyResponse{}
-	mi := &file_mlsbond_proto_msgTypes[50]
+	mi := &file_mlsbond_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3478,7 +3585,7 @@ func (x *GetPolicyResponse) String() string {
 func (*GetPolicyResponse) ProtoMessage() {}
 
 func (x *GetPolicyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[50]
+	mi := &file_mlsbond_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3491,7 +3598,7 @@ func (x *GetPolicyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPolicyResponse.ProtoReflect.Descriptor instead.
 func (*GetPolicyResponse) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{50}
+	return file_mlsbond_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *GetPolicyResponse) GetGlobal() *RekeyPolicy {
@@ -3517,7 +3624,7 @@ type SetPolicyRequest struct {
 
 func (x *SetPolicyRequest) Reset() {
 	*x = SetPolicyRequest{}
-	mi := &file_mlsbond_proto_msgTypes[51]
+	mi := &file_mlsbond_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3529,7 +3636,7 @@ func (x *SetPolicyRequest) String() string {
 func (*SetPolicyRequest) ProtoMessage() {}
 
 func (x *SetPolicyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[51]
+	mi := &file_mlsbond_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3542,7 +3649,7 @@ func (x *SetPolicyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetPolicyRequest.ProtoReflect.Descriptor instead.
 func (*SetPolicyRequest) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{51}
+	return file_mlsbond_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *SetPolicyRequest) GetPolicy() *RekeyPolicy {
@@ -3560,7 +3667,7 @@ type SetPolicyResponse struct {
 
 func (x *SetPolicyResponse) Reset() {
 	*x = SetPolicyResponse{}
-	mi := &file_mlsbond_proto_msgTypes[52]
+	mi := &file_mlsbond_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3572,7 +3679,7 @@ func (x *SetPolicyResponse) String() string {
 func (*SetPolicyResponse) ProtoMessage() {}
 
 func (x *SetPolicyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[52]
+	mi := &file_mlsbond_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3585,7 +3692,7 @@ func (x *SetPolicyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetPolicyResponse.ProtoReflect.Descriptor instead.
 func (*SetPolicyResponse) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{52}
+	return file_mlsbond_proto_rawDescGZIP(), []int{53}
 }
 
 type SetVNIPolicyRequest struct {
@@ -3598,7 +3705,7 @@ type SetVNIPolicyRequest struct {
 
 func (x *SetVNIPolicyRequest) Reset() {
 	*x = SetVNIPolicyRequest{}
-	mi := &file_mlsbond_proto_msgTypes[53]
+	mi := &file_mlsbond_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3610,7 +3717,7 @@ func (x *SetVNIPolicyRequest) String() string {
 func (*SetVNIPolicyRequest) ProtoMessage() {}
 
 func (x *SetVNIPolicyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[53]
+	mi := &file_mlsbond_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3623,7 +3730,7 @@ func (x *SetVNIPolicyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetVNIPolicyRequest.ProtoReflect.Descriptor instead.
 func (*SetVNIPolicyRequest) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{53}
+	return file_mlsbond_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *SetVNIPolicyRequest) GetVni() uint32 {
@@ -3648,7 +3755,7 @@ type SetVNIPolicyResponse struct {
 
 func (x *SetVNIPolicyResponse) Reset() {
 	*x = SetVNIPolicyResponse{}
-	mi := &file_mlsbond_proto_msgTypes[54]
+	mi := &file_mlsbond_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3660,7 +3767,7 @@ func (x *SetVNIPolicyResponse) String() string {
 func (*SetVNIPolicyResponse) ProtoMessage() {}
 
 func (x *SetVNIPolicyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[54]
+	mi := &file_mlsbond_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3673,7 +3780,7 @@ func (x *SetVNIPolicyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetVNIPolicyResponse.ProtoReflect.Descriptor instead.
 func (*SetVNIPolicyResponse) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{54}
+	return file_mlsbond_proto_rawDescGZIP(), []int{55}
 }
 
 type ClearVNIPolicyRequest struct {
@@ -3685,7 +3792,7 @@ type ClearVNIPolicyRequest struct {
 
 func (x *ClearVNIPolicyRequest) Reset() {
 	*x = ClearVNIPolicyRequest{}
-	mi := &file_mlsbond_proto_msgTypes[55]
+	mi := &file_mlsbond_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3697,7 +3804,7 @@ func (x *ClearVNIPolicyRequest) String() string {
 func (*ClearVNIPolicyRequest) ProtoMessage() {}
 
 func (x *ClearVNIPolicyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[55]
+	mi := &file_mlsbond_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3710,7 +3817,7 @@ func (x *ClearVNIPolicyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearVNIPolicyRequest.ProtoReflect.Descriptor instead.
 func (*ClearVNIPolicyRequest) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{55}
+	return file_mlsbond_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *ClearVNIPolicyRequest) GetVni() uint32 {
@@ -3728,7 +3835,7 @@ type ClearVNIPolicyResponse struct {
 
 func (x *ClearVNIPolicyResponse) Reset() {
 	*x = ClearVNIPolicyResponse{}
-	mi := &file_mlsbond_proto_msgTypes[56]
+	mi := &file_mlsbond_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3740,7 +3847,7 @@ func (x *ClearVNIPolicyResponse) String() string {
 func (*ClearVNIPolicyResponse) ProtoMessage() {}
 
 func (x *ClearVNIPolicyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[56]
+	mi := &file_mlsbond_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3753,7 +3860,7 @@ func (x *ClearVNIPolicyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearVNIPolicyResponse.ProtoReflect.Descriptor instead.
 func (*ClearVNIPolicyResponse) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{56}
+	return file_mlsbond_proto_rawDescGZIP(), []int{57}
 }
 
 type RekeyRequest struct {
@@ -3765,7 +3872,7 @@ type RekeyRequest struct {
 
 func (x *RekeyRequest) Reset() {
 	*x = RekeyRequest{}
-	mi := &file_mlsbond_proto_msgTypes[57]
+	mi := &file_mlsbond_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3777,7 +3884,7 @@ func (x *RekeyRequest) String() string {
 func (*RekeyRequest) ProtoMessage() {}
 
 func (x *RekeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[57]
+	mi := &file_mlsbond_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3790,7 +3897,7 @@ func (x *RekeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RekeyRequest.ProtoReflect.Descriptor instead.
 func (*RekeyRequest) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{57}
+	return file_mlsbond_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *RekeyRequest) GetVni() uint32 {
@@ -3808,7 +3915,7 @@ type RekeyResponse struct {
 
 func (x *RekeyResponse) Reset() {
 	*x = RekeyResponse{}
-	mi := &file_mlsbond_proto_msgTypes[58]
+	mi := &file_mlsbond_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3820,7 +3927,7 @@ func (x *RekeyResponse) String() string {
 func (*RekeyResponse) ProtoMessage() {}
 
 func (x *RekeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[58]
+	mi := &file_mlsbond_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3833,7 +3940,7 @@ func (x *RekeyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RekeyResponse.ProtoReflect.Descriptor instead.
 func (*RekeyResponse) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{58}
+	return file_mlsbond_proto_rawDescGZIP(), []int{59}
 }
 
 type ListGroupsRequest struct {
@@ -3844,7 +3951,7 @@ type ListGroupsRequest struct {
 
 func (x *ListGroupsRequest) Reset() {
 	*x = ListGroupsRequest{}
-	mi := &file_mlsbond_proto_msgTypes[59]
+	mi := &file_mlsbond_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3856,7 +3963,7 @@ func (x *ListGroupsRequest) String() string {
 func (*ListGroupsRequest) ProtoMessage() {}
 
 func (x *ListGroupsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[59]
+	mi := &file_mlsbond_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3869,7 +3976,7 @@ func (x *ListGroupsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGroupsRequest.ProtoReflect.Descriptor instead.
 func (*ListGroupsRequest) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{59}
+	return file_mlsbond_proto_rawDescGZIP(), []int{60}
 }
 
 type GroupMember struct {
@@ -3883,7 +3990,7 @@ type GroupMember struct {
 
 func (x *GroupMember) Reset() {
 	*x = GroupMember{}
-	mi := &file_mlsbond_proto_msgTypes[60]
+	mi := &file_mlsbond_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3895,7 +4002,7 @@ func (x *GroupMember) String() string {
 func (*GroupMember) ProtoMessage() {}
 
 func (x *GroupMember) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[60]
+	mi := &file_mlsbond_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3908,7 +4015,7 @@ func (x *GroupMember) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupMember.ProtoReflect.Descriptor instead.
 func (*GroupMember) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{60}
+	return file_mlsbond_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *GroupMember) GetHostPrefix() string {
@@ -3946,7 +4053,7 @@ type GroupStatus struct {
 
 func (x *GroupStatus) Reset() {
 	*x = GroupStatus{}
-	mi := &file_mlsbond_proto_msgTypes[61]
+	mi := &file_mlsbond_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3958,7 +4065,7 @@ func (x *GroupStatus) String() string {
 func (*GroupStatus) ProtoMessage() {}
 
 func (x *GroupStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[61]
+	mi := &file_mlsbond_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3971,7 +4078,7 @@ func (x *GroupStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupStatus.ProtoReflect.Descriptor instead.
 func (*GroupStatus) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{61}
+	return file_mlsbond_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *GroupStatus) GetVni() uint32 {
@@ -4018,7 +4125,7 @@ type ListGroupsResponse struct {
 
 func (x *ListGroupsResponse) Reset() {
 	*x = ListGroupsResponse{}
-	mi := &file_mlsbond_proto_msgTypes[62]
+	mi := &file_mlsbond_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4030,7 +4137,7 @@ func (x *ListGroupsResponse) String() string {
 func (*ListGroupsResponse) ProtoMessage() {}
 
 func (x *ListGroupsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mlsbond_proto_msgTypes[62]
+	mi := &file_mlsbond_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4043,7 +4150,7 @@ func (x *ListGroupsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGroupsResponse.ProtoReflect.Descriptor instead.
 func (*ListGroupsResponse) Descriptor() ([]byte, []int) {
-	return file_mlsbond_proto_rawDescGZIP(), []int{62}
+	return file_mlsbond_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *ListGroupsResponse) GetGroups() []*GroupStatus {
@@ -4064,14 +4171,17 @@ const file_mlsbond_proto_rawDesc = "" +
 	"clientName\x12\x1f\n" +
 	"\vhost_prefix\x18\x02 \x01(\tR\n" +
 	"hostPrefix\"\x0e\n" +
-	"\fInitResponse\"$\n" +
+	"\fInitResponse\"H\n" +
 	"\x10SubscribeRequest\x12\x10\n" +
-	"\x03vni\x18\x01 \x01(\rR\x03vni\"\x13\n" +
-	"\x11SubscribeResponse\"&\n" +
+	"\x03vni\x18\x01 \x01(\rR\x03vni\x12\"\n" +
+	"\forchestrator\x18\x02 \x01(\tR\forchestrator\"\x13\n" +
+	"\x11SubscribeResponse\"J\n" +
 	"\x12UnsubscribeRequest\x12\x10\n" +
-	"\x03vni\x18\x01 \x01(\rR\x03vni\"\x15\n" +
-	"\x13UnsubscribeResponse\"\x17\n" +
-	"\x15DataplaneResetRequest\"\x18\n" +
+	"\x03vni\x18\x01 \x01(\rR\x03vni\x12\"\n" +
+	"\forchestrator\x18\x02 \x01(\tR\forchestrator\"\x15\n" +
+	"\x13UnsubscribeResponse\";\n" +
+	"\x15DataplaneResetRequest\x12\"\n" +
+	"\forchestrator\x18\x01 \x01(\tR\forchestrator\"\x18\n" +
 	"\x16DataplaneResetResponse\"\xb6\x01\n" +
 	"\x15SecurityAssociationID\x12\x10\n" +
 	"\x03vni\x18\x01 \x01(\rR\x03vni\x12\x10\n" +
@@ -4089,9 +4199,10 @@ const file_mlsbond_proto_rawDesc = "" +
 	"\fWatchRequest\x125\n" +
 	"\tinventory\x18\x01 \x01(\v2\x15.mlsbond.v1.InventoryH\x00R\tinventory\x12>\n" +
 	"\fconfirmation\x18\x02 \x01(\v2\x18.mlsbond.v1.ConfirmationH\x00R\fconfirmationB\t\n" +
-	"\arequest\"@\n" +
+	"\arequest\"d\n" +
 	"\tInventory\x123\n" +
-	"\x03ids\x18\x01 \x03(\v2!.mlsbond.v1.SecurityAssociationIDR\x03ids\"8\n" +
+	"\x03ids\x18\x01 \x03(\v2!.mlsbond.v1.SecurityAssociationIDR\x03ids\x12\"\n" +
+	"\forchestrator\x18\x02 \x01(\tR\forchestrator\"8\n" +
 	"\fConfirmation\x12\x12\n" +
 	"\x04step\x18\x01 \x01(\x04R\x04step\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\"\xde\x01\n" +
@@ -4107,8 +4218,12 @@ const file_mlsbond_proto_rawDesc = "" +
 	"\x03old\x18\x01 \x01(\v2!.mlsbond.v1.SecurityAssociationIDR\x03old\x121\n" +
 	"\x03new\x18\x02 \x01(\v2\x1f.mlsbond.v1.SecurityAssociationR\x03new\"N\n" +
 	"\x19RemoveSecurityAssociation\x121\n" +
-	"\x02id\x18\x01 \x01(\v2!.mlsbond.v1.SecurityAssociationIDR\x02id\"\x0f\n" +
-	"\rStatusRequest\"\xc4\x02\n" +
+	"\x02id\x18\x01 \x01(\v2!.mlsbond.v1.SecurityAssociationIDR\x02id\"3\n" +
+	"\rStatusRequest\x12\"\n" +
+	"\forchestrator\x18\x01 \x01(\tR\forchestrator\"F\n" +
+	"\x12OrchestratorStatus\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1c\n" +
+	"\tconnected\x18\x02 \x01(\bR\tconnected\"\xc4\x02\n" +
 	"\n" +
 	"PairStatus\x12\x10\n" +
 	"\x03vni\x18\x01 \x01(\rR\x03vni\x12(\n" +
@@ -4123,7 +4238,7 @@ const file_mlsbond_proto_rawDesc = "" +
 	"egress_spi\x18\a \x01(\rR\tegressSpi\x12!\n" +
 	"\fingress_spis\x18\b \x03(\rR\vingressSpisB\r\n" +
 	"\v_pair_epochB\x0f\n" +
-	"\r_target_epoch\"\x9c\x02\n" +
+	"\r_target_epoch\"\xe2\x02\n" +
 	"\x0eStatusResponse\x12\x1f\n" +
 	"\vclient_name\x18\x01 \x01(\tR\n" +
 	"clientName\x12\x1f\n" +
@@ -4133,7 +4248,8 @@ const file_mlsbond_proto_rawDesc = "" +
 	"\x10server_connected\x18\x04 \x01(\bR\x0fserverConnected\x12$\n" +
 	"\x0eserver_boot_id\x18\x05 \x01(\tR\fserverBootId\x125\n" +
 	"\x16orchestrator_connected\x18\x06 \x01(\bR\x15orchestratorConnected\x12,\n" +
-	"\x05pairs\x18\a \x03(\v2\x16.mlsbond.v1.PairStatusR\x05pairs\"\xdb\x04\n" +
+	"\x05pairs\x18\a \x03(\v2\x16.mlsbond.v1.PairStatusR\x05pairs\x12D\n" +
+	"\rorchestrators\x18\b \x03(\v2\x1e.mlsbond.v1.OrchestratorStatusR\rorchestrators\"\xdb\x04\n" +
 	"\rClientMessage\x12)\n" +
 	"\x05hello\x18\x01 \x01(\v2\x11.mlsbond.v1.HelloH\x00R\x05hello\x12<\n" +
 	"\fkey_packages\x18\x02 \x01(\v2\x17.mlsbond.v1.KeyPackagesH\x00R\vkeyPackages\x12&\n" +
@@ -4350,7 +4466,7 @@ func file_mlsbond_proto_rawDescGZIP() []byte {
 }
 
 var file_mlsbond_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_mlsbond_proto_msgTypes = make([]protoimpl.MessageInfo, 64)
+var file_mlsbond_proto_msgTypes = make([]protoimpl.MessageInfo, 65)
 var file_mlsbond_proto_goTypes = []any{
 	(Direction)(0),                    // 0: mlsbond.v1.Direction
 	(Algorithm)(0),                    // 1: mlsbond.v1.Algorithm
@@ -4375,52 +4491,53 @@ var file_mlsbond_proto_goTypes = []any{
 	(*UpdateSecurityAssociation)(nil), // 20: mlsbond.v1.UpdateSecurityAssociation
 	(*RemoveSecurityAssociation)(nil), // 21: mlsbond.v1.RemoveSecurityAssociation
 	(*StatusRequest)(nil),             // 22: mlsbond.v1.StatusRequest
-	(*PairStatus)(nil),                // 23: mlsbond.v1.PairStatus
-	(*StatusResponse)(nil),            // 24: mlsbond.v1.StatusResponse
-	(*ClientMessage)(nil),             // 25: mlsbond.v1.ClientMessage
-	(*Hello)(nil),                     // 26: mlsbond.v1.Hello
-	(*KeyPackages)(nil),               // 27: mlsbond.v1.KeyPackages
-	(*Join)(nil),                      // 28: mlsbond.v1.Join
-	(*Resume)(nil),                    // 29: mlsbond.v1.Resume
-	(*Leave)(nil),                     // 30: mlsbond.v1.Leave
-	(*GroupCreated)(nil),              // 31: mlsbond.v1.GroupCreated
-	(*Commit)(nil),                    // 32: mlsbond.v1.Commit
-	(*CommitFailed)(nil),              // 33: mlsbond.v1.CommitFailed
-	(*GroupMessage)(nil),              // 34: mlsbond.v1.GroupMessage
-	(*Ack)(nil),                       // 35: mlsbond.v1.Ack
-	(*GroupApplication)(nil),          // 36: mlsbond.v1.GroupApplication
-	(*Ready)(nil),                     // 37: mlsbond.v1.Ready
-	(*ReadySPI)(nil),                  // 38: mlsbond.v1.ReadySPI
-	(*Switched)(nil),                  // 39: mlsbond.v1.Switched
-	(*ResetRequest)(nil),              // 40: mlsbond.v1.ResetRequest
-	(*ServerMessage)(nil),             // 41: mlsbond.v1.ServerMessage
-	(*HelloAck)(nil),                  // 42: mlsbond.v1.HelloAck
-	(*CreateGroup)(nil),               // 43: mlsbond.v1.CreateGroup
-	(*Welcomed)(nil),                  // 44: mlsbond.v1.Welcomed
-	(*Entry)(nil),                     // 45: mlsbond.v1.Entry
-	(*CommitEntry)(nil),               // 46: mlsbond.v1.CommitEntry
-	(*Rejoin)(nil),                    // 47: mlsbond.v1.Rejoin
-	(*Scope)(nil),                     // 48: mlsbond.v1.Scope
-	(*CommitWork)(nil),                // 49: mlsbond.v1.CommitWork
-	(*KeyPackagesUsed)(nil),           // 50: mlsbond.v1.KeyPackagesUsed
-	(*Accepted)(nil),                  // 51: mlsbond.v1.Accepted
-	(*ProposeUpdate)(nil),             // 52: mlsbond.v1.ProposeUpdate
-	(*RekeyPolicy)(nil),               // 53: mlsbond.v1.RekeyPolicy
-	(*GetPolicyRequest)(nil),          // 54: mlsbond.v1.GetPolicyRequest
-	(*GetPolicyResponse)(nil),         // 55: mlsbond.v1.GetPolicyResponse
-	(*SetPolicyRequest)(nil),          // 56: mlsbond.v1.SetPolicyRequest
-	(*SetPolicyResponse)(nil),         // 57: mlsbond.v1.SetPolicyResponse
-	(*SetVNIPolicyRequest)(nil),       // 58: mlsbond.v1.SetVNIPolicyRequest
-	(*SetVNIPolicyResponse)(nil),      // 59: mlsbond.v1.SetVNIPolicyResponse
-	(*ClearVNIPolicyRequest)(nil),     // 60: mlsbond.v1.ClearVNIPolicyRequest
-	(*ClearVNIPolicyResponse)(nil),    // 61: mlsbond.v1.ClearVNIPolicyResponse
-	(*RekeyRequest)(nil),              // 62: mlsbond.v1.RekeyRequest
-	(*RekeyResponse)(nil),             // 63: mlsbond.v1.RekeyResponse
-	(*ListGroupsRequest)(nil),         // 64: mlsbond.v1.ListGroupsRequest
-	(*GroupMember)(nil),               // 65: mlsbond.v1.GroupMember
-	(*GroupStatus)(nil),               // 66: mlsbond.v1.GroupStatus
-	(*ListGroupsResponse)(nil),        // 67: mlsbond.v1.ListGroupsResponse
-	nil,                               // 68: mlsbond.v1.GetPolicyResponse.VnisEntry
+	(*OrchestratorStatus)(nil),        // 23: mlsbond.v1.OrchestratorStatus
+	(*PairStatus)(nil),                // 24: mlsbond.v1.PairStatus
+	(*StatusResponse)(nil),            // 25: mlsbond.v1.StatusResponse
+	(*ClientMessage)(nil),             // 26: mlsbond.v1.ClientMessage
+	(*Hello)(nil),                     // 27: mlsbond.v1.Hello
+	(*KeyPackages)(nil),               // 28: mlsbond.v1.KeyPackages
+	(*Join)(nil),                      // 29: mlsbond.v1.Join
+	(*Resume)(nil),                    // 30: mlsbond.v1.Resume
+	(*Leave)(nil),                     // 31: mlsbond.v1.Leave
+	(*GroupCreated)(nil),              // 32: mlsbond.v1.GroupCreated
+	(*Commit)(nil),                    // 33: mlsbond.v1.Commit
+	(*CommitFailed)(nil),              // 34: mlsbond.v1.CommitFailed
+	(*GroupMessage)(nil),              // 35: mlsbond.v1.GroupMessage
+	(*Ack)(nil),                       // 36: mlsbond.v1.Ack
+	(*GroupApplication)(nil),          // 37: mlsbond.v1.GroupApplication
+	(*Ready)(nil),                     // 38: mlsbond.v1.Ready
+	(*ReadySPI)(nil),                  // 39: mlsbond.v1.ReadySPI
+	(*Switched)(nil),                  // 40: mlsbond.v1.Switched
+	(*ResetRequest)(nil),              // 41: mlsbond.v1.ResetRequest
+	(*ServerMessage)(nil),             // 42: mlsbond.v1.ServerMessage
+	(*HelloAck)(nil),                  // 43: mlsbond.v1.HelloAck
+	(*CreateGroup)(nil),               // 44: mlsbond.v1.CreateGroup
+	(*Welcomed)(nil),                  // 45: mlsbond.v1.Welcomed
+	(*Entry)(nil),                     // 46: mlsbond.v1.Entry
+	(*CommitEntry)(nil),               // 47: mlsbond.v1.CommitEntry
+	(*Rejoin)(nil),                    // 48: mlsbond.v1.Rejoin
+	(*Scope)(nil),                     // 49: mlsbond.v1.Scope
+	(*CommitWork)(nil),                // 50: mlsbond.v1.CommitWork
+	(*KeyPackagesUsed)(nil),           // 51: mlsbond.v1.KeyPackagesUsed
+	(*Accepted)(nil),                  // 52: mlsbond.v1.Accepted
+	(*ProposeUpdate)(nil),             // 53: mlsbond.v1.ProposeUpdate
+	(*RekeyPolicy)(nil),               // 54: mlsbond.v1.RekeyPolicy
+	(*GetPolicyRequest)(nil),          // 55: mlsbond.v1.GetPolicyRequest
+	(*GetPolicyResponse)(nil),         // 56: mlsbond.v1.GetPolicyResponse
+	(*SetPolicyRequest)(nil),          // 57: mlsbond.v1.SetPolicyRequest
+	(*SetPolicyResponse)(nil),         // 58: mlsbond.v1.SetPolicyResponse
+	(*SetVNIPolicyRequest)(nil),       // 59: mlsbond.v1.SetVNIPolicyRequest
+	(*SetVNIPolicyResponse)(nil),      // 60: mlsbond.v1.SetVNIPolicyResponse
+	(*ClearVNIPolicyRequest)(nil),     // 61: mlsbond.v1.ClearVNIPolicyRequest
+	(*ClearVNIPolicyResponse)(nil),    // 62: mlsbond.v1.ClearVNIPolicyResponse
+	(*RekeyRequest)(nil),              // 63: mlsbond.v1.RekeyRequest
+	(*RekeyResponse)(nil),             // 64: mlsbond.v1.RekeyResponse
+	(*ListGroupsRequest)(nil),         // 65: mlsbond.v1.ListGroupsRequest
+	(*GroupMember)(nil),               // 66: mlsbond.v1.GroupMember
+	(*GroupStatus)(nil),               // 67: mlsbond.v1.GroupStatus
+	(*ListGroupsResponse)(nil),        // 68: mlsbond.v1.ListGroupsResponse
+	nil,                               // 69: mlsbond.v1.GetPolicyResponse.VnisEntry
 }
 var file_mlsbond_proto_depIdxs = []int32{
 	0,  // 0: mlsbond.v1.SecurityAssociationID.direction:type_name -> mlsbond.v1.Direction
@@ -4437,74 +4554,75 @@ var file_mlsbond_proto_depIdxs = []int32{
 	14, // 11: mlsbond.v1.UpdateSecurityAssociation.new:type_name -> mlsbond.v1.SecurityAssociation
 	13, // 12: mlsbond.v1.RemoveSecurityAssociation.id:type_name -> mlsbond.v1.SecurityAssociationID
 	2,  // 13: mlsbond.v1.PairStatus.waiting:type_name -> mlsbond.v1.Waiting
-	23, // 14: mlsbond.v1.StatusResponse.pairs:type_name -> mlsbond.v1.PairStatus
-	26, // 15: mlsbond.v1.ClientMessage.hello:type_name -> mlsbond.v1.Hello
-	27, // 16: mlsbond.v1.ClientMessage.key_packages:type_name -> mlsbond.v1.KeyPackages
-	28, // 17: mlsbond.v1.ClientMessage.join:type_name -> mlsbond.v1.Join
-	29, // 18: mlsbond.v1.ClientMessage.resume:type_name -> mlsbond.v1.Resume
-	30, // 19: mlsbond.v1.ClientMessage.leave:type_name -> mlsbond.v1.Leave
-	31, // 20: mlsbond.v1.ClientMessage.group_created:type_name -> mlsbond.v1.GroupCreated
-	32, // 21: mlsbond.v1.ClientMessage.commit:type_name -> mlsbond.v1.Commit
-	33, // 22: mlsbond.v1.ClientMessage.commit_failed:type_name -> mlsbond.v1.CommitFailed
-	34, // 23: mlsbond.v1.ClientMessage.group_message:type_name -> mlsbond.v1.GroupMessage
-	35, // 24: mlsbond.v1.ClientMessage.ack:type_name -> mlsbond.v1.Ack
-	40, // 25: mlsbond.v1.ClientMessage.reset_request:type_name -> mlsbond.v1.ResetRequest
-	3,  // 26: mlsbond.v1.GroupMessage.kind:type_name -> mlsbond.v1.GroupMessageKind
-	37, // 27: mlsbond.v1.GroupApplication.ready:type_name -> mlsbond.v1.Ready
-	39, // 28: mlsbond.v1.GroupApplication.switched:type_name -> mlsbond.v1.Switched
-	38, // 29: mlsbond.v1.Ready.spis:type_name -> mlsbond.v1.ReadySPI
-	42, // 30: mlsbond.v1.ServerMessage.hello_ack:type_name -> mlsbond.v1.HelloAck
-	43, // 31: mlsbond.v1.ServerMessage.create_group:type_name -> mlsbond.v1.CreateGroup
-	44, // 32: mlsbond.v1.ServerMessage.welcomed:type_name -> mlsbond.v1.Welcomed
-	45, // 33: mlsbond.v1.ServerMessage.entry:type_name -> mlsbond.v1.Entry
-	49, // 34: mlsbond.v1.ServerMessage.commit_work:type_name -> mlsbond.v1.CommitWork
-	47, // 35: mlsbond.v1.ServerMessage.rejoin:type_name -> mlsbond.v1.Rejoin
-	50, // 36: mlsbond.v1.ServerMessage.key_packages_used:type_name -> mlsbond.v1.KeyPackagesUsed
-	51, // 37: mlsbond.v1.ServerMessage.accepted:type_name -> mlsbond.v1.Accepted
-	52, // 38: mlsbond.v1.ServerMessage.propose_update:type_name -> mlsbond.v1.ProposeUpdate
-	46, // 39: mlsbond.v1.Entry.commit:type_name -> mlsbond.v1.CommitEntry
-	34, // 40: mlsbond.v1.Entry.message:type_name -> mlsbond.v1.GroupMessage
-	4,  // 41: mlsbond.v1.Scope.kind:type_name -> mlsbond.v1.ScopeKind
-	48, // 42: mlsbond.v1.CommitWork.scope:type_name -> mlsbond.v1.Scope
-	53, // 43: mlsbond.v1.GetPolicyResponse.global:type_name -> mlsbond.v1.RekeyPolicy
-	68, // 44: mlsbond.v1.GetPolicyResponse.vnis:type_name -> mlsbond.v1.GetPolicyResponse.VnisEntry
-	53, // 45: mlsbond.v1.SetPolicyRequest.policy:type_name -> mlsbond.v1.RekeyPolicy
-	53, // 46: mlsbond.v1.SetVNIPolicyRequest.policy:type_name -> mlsbond.v1.RekeyPolicy
-	65, // 47: mlsbond.v1.GroupStatus.members:type_name -> mlsbond.v1.GroupMember
-	53, // 48: mlsbond.v1.GroupStatus.policy:type_name -> mlsbond.v1.RekeyPolicy
-	66, // 49: mlsbond.v1.ListGroupsResponse.groups:type_name -> mlsbond.v1.GroupStatus
-	53, // 50: mlsbond.v1.GetPolicyResponse.VnisEntry.value:type_name -> mlsbond.v1.RekeyPolicy
-	5,  // 51: mlsbond.v1.ClientAPI.Init:input_type -> mlsbond.v1.InitRequest
-	7,  // 52: mlsbond.v1.ClientAPI.Subscribe:input_type -> mlsbond.v1.SubscribeRequest
-	9,  // 53: mlsbond.v1.ClientAPI.Unsubscribe:input_type -> mlsbond.v1.UnsubscribeRequest
-	11, // 54: mlsbond.v1.ClientAPI.DataplaneReset:input_type -> mlsbond.v1.DataplaneResetRequest
-	22, // 55: mlsbond.v1.ClientAPI.Status:input_type -> mlsbond.v1.StatusRequest
-	15, // 56: mlsbond.v1.ClientAPI.WatchSecurityAssociations:input_type -> mlsbond.v1.WatchRequest
-	25, // 57: mlsbond.v1.Delivery.Stream:input_type -> mlsbond.v1.ClientMessage
-	54, // 58: mlsbond.v1.Admin.GetPolicy:input_type -> mlsbond.v1.GetPolicyRequest
-	56, // 59: mlsbond.v1.Admin.SetPolicy:input_type -> mlsbond.v1.SetPolicyRequest
-	58, // 60: mlsbond.v1.Admin.SetVNIPolicy:input_type -> mlsbond.v1.SetVNIPolicyRequest
-	60, // 61: mlsbond.v1.Admin.ClearVNIPolicy:input_type -> mlsbond.v1.ClearVNIPolicyRequest
-	62, // 62: mlsbond.v1.Admin.Rekey:input_type -> mlsbond.v1.RekeyRequest
-	64, // 63: mlsbond.v1.Admin.ListGroups:input_type -> mlsbond.v1.ListGroupsRequest
-	6,  // 64: mlsbond.v1.ClientAPI.Init:output_type -> mlsbond.v1.InitResponse
-	8,  // 65: mlsbond.v1.ClientAPI.Subscribe:output_type -> mlsbond.v1.SubscribeResponse
-	10, // 66: mlsbond.v1.ClientAPI.Unsubscribe:output_type -> mlsbond.v1.UnsubscribeResponse
-	12, // 67: mlsbond.v1.ClientAPI.DataplaneReset:output_type -> mlsbond.v1.DataplaneResetResponse
-	24, // 68: mlsbond.v1.ClientAPI.Status:output_type -> mlsbond.v1.StatusResponse
-	18, // 69: mlsbond.v1.ClientAPI.WatchSecurityAssociations:output_type -> mlsbond.v1.Step
-	41, // 70: mlsbond.v1.Delivery.Stream:output_type -> mlsbond.v1.ServerMessage
-	55, // 71: mlsbond.v1.Admin.GetPolicy:output_type -> mlsbond.v1.GetPolicyResponse
-	57, // 72: mlsbond.v1.Admin.SetPolicy:output_type -> mlsbond.v1.SetPolicyResponse
-	59, // 73: mlsbond.v1.Admin.SetVNIPolicy:output_type -> mlsbond.v1.SetVNIPolicyResponse
-	61, // 74: mlsbond.v1.Admin.ClearVNIPolicy:output_type -> mlsbond.v1.ClearVNIPolicyResponse
-	63, // 75: mlsbond.v1.Admin.Rekey:output_type -> mlsbond.v1.RekeyResponse
-	67, // 76: mlsbond.v1.Admin.ListGroups:output_type -> mlsbond.v1.ListGroupsResponse
-	64, // [64:77] is the sub-list for method output_type
-	51, // [51:64] is the sub-list for method input_type
-	51, // [51:51] is the sub-list for extension type_name
-	51, // [51:51] is the sub-list for extension extendee
-	0,  // [0:51] is the sub-list for field type_name
+	24, // 14: mlsbond.v1.StatusResponse.pairs:type_name -> mlsbond.v1.PairStatus
+	23, // 15: mlsbond.v1.StatusResponse.orchestrators:type_name -> mlsbond.v1.OrchestratorStatus
+	27, // 16: mlsbond.v1.ClientMessage.hello:type_name -> mlsbond.v1.Hello
+	28, // 17: mlsbond.v1.ClientMessage.key_packages:type_name -> mlsbond.v1.KeyPackages
+	29, // 18: mlsbond.v1.ClientMessage.join:type_name -> mlsbond.v1.Join
+	30, // 19: mlsbond.v1.ClientMessage.resume:type_name -> mlsbond.v1.Resume
+	31, // 20: mlsbond.v1.ClientMessage.leave:type_name -> mlsbond.v1.Leave
+	32, // 21: mlsbond.v1.ClientMessage.group_created:type_name -> mlsbond.v1.GroupCreated
+	33, // 22: mlsbond.v1.ClientMessage.commit:type_name -> mlsbond.v1.Commit
+	34, // 23: mlsbond.v1.ClientMessage.commit_failed:type_name -> mlsbond.v1.CommitFailed
+	35, // 24: mlsbond.v1.ClientMessage.group_message:type_name -> mlsbond.v1.GroupMessage
+	36, // 25: mlsbond.v1.ClientMessage.ack:type_name -> mlsbond.v1.Ack
+	41, // 26: mlsbond.v1.ClientMessage.reset_request:type_name -> mlsbond.v1.ResetRequest
+	3,  // 27: mlsbond.v1.GroupMessage.kind:type_name -> mlsbond.v1.GroupMessageKind
+	38, // 28: mlsbond.v1.GroupApplication.ready:type_name -> mlsbond.v1.Ready
+	40, // 29: mlsbond.v1.GroupApplication.switched:type_name -> mlsbond.v1.Switched
+	39, // 30: mlsbond.v1.Ready.spis:type_name -> mlsbond.v1.ReadySPI
+	43, // 31: mlsbond.v1.ServerMessage.hello_ack:type_name -> mlsbond.v1.HelloAck
+	44, // 32: mlsbond.v1.ServerMessage.create_group:type_name -> mlsbond.v1.CreateGroup
+	45, // 33: mlsbond.v1.ServerMessage.welcomed:type_name -> mlsbond.v1.Welcomed
+	46, // 34: mlsbond.v1.ServerMessage.entry:type_name -> mlsbond.v1.Entry
+	50, // 35: mlsbond.v1.ServerMessage.commit_work:type_name -> mlsbond.v1.CommitWork
+	48, // 36: mlsbond.v1.ServerMessage.rejoin:type_name -> mlsbond.v1.Rejoin
+	51, // 37: mlsbond.v1.ServerMessage.key_packages_used:type_name -> mlsbond.v1.KeyPackagesUsed
+	52, // 38: mlsbond.v1.ServerMessage.accepted:type_name -> mlsbond.v1.Accepted
+	53, // 39: mlsbond.v1.ServerMessage.propose_update:type_name -> mlsbond.v1.ProposeUpdate
+	47, // 40: mlsbond.v1.Entry.commit:type_name -> mlsbond.v1.CommitEntry
+	35, // 41: mlsbond.v1.Entry.message:type_name -> mlsbond.v1.GroupMessage
+	4,  // 42: mlsbond.v1.Scope.kind:type_name -> mlsbond.v1.ScopeKind
+	49, // 43: mlsbond.v1.CommitWork.scope:type_name -> mlsbond.v1.Scope
+	54, // 44: mlsbond.v1.GetPolicyResponse.global:type_name -> mlsbond.v1.RekeyPolicy
+	69, // 45: mlsbond.v1.GetPolicyResponse.vnis:type_name -> mlsbond.v1.GetPolicyResponse.VnisEntry
+	54, // 46: mlsbond.v1.SetPolicyRequest.policy:type_name -> mlsbond.v1.RekeyPolicy
+	54, // 47: mlsbond.v1.SetVNIPolicyRequest.policy:type_name -> mlsbond.v1.RekeyPolicy
+	66, // 48: mlsbond.v1.GroupStatus.members:type_name -> mlsbond.v1.GroupMember
+	54, // 49: mlsbond.v1.GroupStatus.policy:type_name -> mlsbond.v1.RekeyPolicy
+	67, // 50: mlsbond.v1.ListGroupsResponse.groups:type_name -> mlsbond.v1.GroupStatus
+	54, // 51: mlsbond.v1.GetPolicyResponse.VnisEntry.value:type_name -> mlsbond.v1.RekeyPolicy
+	5,  // 52: mlsbond.v1.ClientAPI.Init:input_type -> mlsbond.v1.InitRequest
+	7,  // 53: mlsbond.v1.ClientAPI.Subscribe:input_type -> mlsbond.v1.SubscribeRequest
+	9,  // 54: mlsbond.v1.ClientAPI.Unsubscribe:input_type -> mlsbond.v1.UnsubscribeRequest
+	11, // 55: mlsbond.v1.ClientAPI.DataplaneReset:input_type -> mlsbond.v1.DataplaneResetRequest
+	22, // 56: mlsbond.v1.ClientAPI.Status:input_type -> mlsbond.v1.StatusRequest
+	15, // 57: mlsbond.v1.ClientAPI.WatchSecurityAssociations:input_type -> mlsbond.v1.WatchRequest
+	26, // 58: mlsbond.v1.Delivery.Stream:input_type -> mlsbond.v1.ClientMessage
+	55, // 59: mlsbond.v1.Admin.GetPolicy:input_type -> mlsbond.v1.GetPolicyRequest
+	57, // 60: mlsbond.v1.Admin.SetPolicy:input_type -> mlsbond.v1.SetPolicyRequest
+	59, // 61: mlsbond.v1.Admin.SetVNIPolicy:input_type -> mlsbond.v1.SetVNIPolicyRequest
+	61, // 62: mlsbond.v1.Admin.ClearVNIPolicy:input_type -> mlsbond.v1.ClearVNIPolicyRequest
+	63, // 63: mlsbond.v1.Admin.Rekey:input_type -> mlsbond.v1.RekeyRequest
+	65, // 64: mlsbond.v1.Admin.ListGroups:input_type -> mlsbond.v1.ListGroupsRequest
+	6,  // 65: mlsbond.v1.ClientAPI.Init:output_type -> mlsbond.v1.InitResponse
+	8,  // 66: mlsbond.v1.ClientAPI.Subscribe:output_type -> mlsbond.v1.SubscribeResponse
+	10, // 67: mlsbond.v1.ClientAPI.Unsubscribe:output_type -> mlsbond.v1.UnsubscribeResponse
+	12, // 68: mlsbond.v1.ClientAPI.DataplaneReset:output_type -> mlsbond.v1.DataplaneResetResponse
+	25, // 69: mlsbond.v1.ClientAPI.Status:output_type -> mlsbond.v1.StatusResponse
+	18, // 70: mlsbond.v1.ClientAPI.WatchSecurityAssociations:output_type -> mlsbond.v1.Step
+	42, // 71: mlsbond.v1.Delivery.Stream:output_type -> mlsbond.v1.ServerMessage
+	56, // 72: mlsbond.v1.Admin.GetPolicy:output_type -> mlsbond.v1.GetPolicyResponse
+	58, // 73: mlsbond.v1.Admin.SetPolicy:output_type -> mlsbond.v1.SetPolicyResponse
+	60, // 74: mlsbond.v1.Admin.SetVNIPolicy:output_type -> mlsbond.v1.SetVNIPolicyResponse
+	62, // 75: mlsbond.v1.Admin.ClearVNIPolicy:output_type -> mlsbond.v1.ClearVNIPolicyResponse
+	64, // 76: mlsbond.v1.Admin.Rekey:output_type -> mlsbond.v1.RekeyResponse
+	68, // 77: mlsbond.v1.Admin.ListGroups:output_type -> mlsbond.v1.ListGroupsResponse
+	65, // [65:78] is the sub-list for method output_type
+	52, // [52:65] is the sub-list for method input_type
+	52, // [52:52] is the sub-list for extension type_name
+	52, // [52:52] is the sub-list for extension extendee
+	0,  // [0:52] is the sub-list for field type_name
 }
 
 func init() { file_mlsbond_proto_init() }
@@ -4521,8 +4639,8 @@ func file_mlsbond_proto_init() {
 		(*Step_Update)(nil),
 		(*Step_Remove)(nil),
 	}
-	file_mlsbond_proto_msgTypes[18].OneofWrappers = []any{}
-	file_mlsbond_proto_msgTypes[20].OneofWrappers = []any{
+	file_mlsbond_proto_msgTypes[19].OneofWrappers = []any{}
+	file_mlsbond_proto_msgTypes[21].OneofWrappers = []any{
 		(*ClientMessage_Hello)(nil),
 		(*ClientMessage_KeyPackages)(nil),
 		(*ClientMessage_Join)(nil),
@@ -4535,11 +4653,11 @@ func file_mlsbond_proto_init() {
 		(*ClientMessage_Ack)(nil),
 		(*ClientMessage_ResetRequest)(nil),
 	}
-	file_mlsbond_proto_msgTypes[31].OneofWrappers = []any{
+	file_mlsbond_proto_msgTypes[32].OneofWrappers = []any{
 		(*GroupApplication_Ready)(nil),
 		(*GroupApplication_Switched)(nil),
 	}
-	file_mlsbond_proto_msgTypes[36].OneofWrappers = []any{
+	file_mlsbond_proto_msgTypes[37].OneofWrappers = []any{
 		(*ServerMessage_HelloAck)(nil),
 		(*ServerMessage_CreateGroup)(nil),
 		(*ServerMessage_Welcomed)(nil),
@@ -4550,7 +4668,7 @@ func file_mlsbond_proto_init() {
 		(*ServerMessage_Accepted)(nil),
 		(*ServerMessage_ProposeUpdate)(nil),
 	}
-	file_mlsbond_proto_msgTypes[40].OneofWrappers = []any{
+	file_mlsbond_proto_msgTypes[41].OneofWrappers = []any{
 		(*Entry_Commit)(nil),
 		(*Entry_Message)(nil),
 	}
@@ -4560,7 +4678,7 @@ func file_mlsbond_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mlsbond_proto_rawDesc), len(file_mlsbond_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   64,
+			NumMessages:   65,
 			NumExtensions: 0,
 			NumServices:   3,
 		},

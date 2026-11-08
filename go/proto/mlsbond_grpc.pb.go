@@ -39,16 +39,21 @@ type ClientAPIClient interface {
 	// Init names this host. Idempotent for the same values; a different host prefix is refused
 	// while VNIs are subscribed.
 	Init(ctx context.Context, in *InitRequest, opts ...grpc.CallOption) (*InitResponse, error)
-	// Subscribe makes this host a member of the VNI group. Idempotent.
+	// Subscribe makes this host a member of the VNI group, on behalf of one orchestrator. Idempotent.
+	// Refused, like its stream, for a third orchestrator while two others are connected.
 	Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (*SubscribeResponse, error)
-	// Unsubscribe leaves the VNI group and removes all its Security Associations. Idempotent.
+	// Unsubscribe ends one orchestrator's interest in the VNI. Once no orchestrator wants it, this
+	// host leaves the VNI group and all its Security Associations are removed. Idempotent.
 	Unsubscribe(ctx context.Context, in *UnsubscribeRequest, opts ...grpc.CallOption) (*UnsubscribeResponse, error)
-	// DataplaneReset reports that the dataplane lost all its Security Associations: every pair of
-	// this host gets fresh ones.
+	// DataplaneReset reports that one orchestrator's dataplane lost all its Security Associations:
+	// every pair of this host gets fresh ones, which that orchestrator adds and another one switches
+	// to.
 	DataplaneReset(ctx context.Context, in *DataplaneResetRequest, opts ...grpc.CallOption) (*DataplaneResetResponse, error)
+	// Status tells how this host stands, and how each pair stands from one orchestrator's side.
 	Status(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error)
 	// WatchSecurityAssociations streams the steps to carry out. The orchestrator first sends its
-	// inventory, then one confirmation per step.
+	// inventory, which names it, then one confirmation per step. A stream of the same name replaces
+	// the old one, another name adds a stream, and a third one is refused while two are connected.
 	WatchSecurityAssociations(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[WatchRequest, Step], error)
 }
 
@@ -130,16 +135,21 @@ type ClientAPIServer interface {
 	// Init names this host. Idempotent for the same values; a different host prefix is refused
 	// while VNIs are subscribed.
 	Init(context.Context, *InitRequest) (*InitResponse, error)
-	// Subscribe makes this host a member of the VNI group. Idempotent.
+	// Subscribe makes this host a member of the VNI group, on behalf of one orchestrator. Idempotent.
+	// Refused, like its stream, for a third orchestrator while two others are connected.
 	Subscribe(context.Context, *SubscribeRequest) (*SubscribeResponse, error)
-	// Unsubscribe leaves the VNI group and removes all its Security Associations. Idempotent.
+	// Unsubscribe ends one orchestrator's interest in the VNI. Once no orchestrator wants it, this
+	// host leaves the VNI group and all its Security Associations are removed. Idempotent.
 	Unsubscribe(context.Context, *UnsubscribeRequest) (*UnsubscribeResponse, error)
-	// DataplaneReset reports that the dataplane lost all its Security Associations: every pair of
-	// this host gets fresh ones.
+	// DataplaneReset reports that one orchestrator's dataplane lost all its Security Associations:
+	// every pair of this host gets fresh ones, which that orchestrator adds and another one switches
+	// to.
 	DataplaneReset(context.Context, *DataplaneResetRequest) (*DataplaneResetResponse, error)
+	// Status tells how this host stands, and how each pair stands from one orchestrator's side.
 	Status(context.Context, *StatusRequest) (*StatusResponse, error)
 	// WatchSecurityAssociations streams the steps to carry out. The orchestrator first sends its
-	// inventory, then one confirmation per step.
+	// inventory, which names it, then one confirmation per step. A stream of the same name replaces
+	// the old one, another name adds a stream, and a third one is refused while two are connected.
 	WatchSecurityAssociations(grpc.BidiStreamingServer[WatchRequest, Step]) error
 	mustEmbedUnimplementedClientAPIServer()
 }

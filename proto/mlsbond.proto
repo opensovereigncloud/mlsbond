@@ -16,16 +16,21 @@ service ClientAPI {
   // Init names this host. Idempotent for the same values; a different host prefix is refused
   // while VNIs are subscribed.
   rpc Init(InitRequest) returns (InitResponse);
-  // Subscribe makes this host a member of the VNI group. Idempotent.
+  // Subscribe makes this host a member of the VNI group, on behalf of one orchestrator. Idempotent.
+  // Refused, like its stream, for a third orchestrator while two others are connected.
   rpc Subscribe(SubscribeRequest) returns (SubscribeResponse);
-  // Unsubscribe leaves the VNI group and removes all its Security Associations. Idempotent.
+  // Unsubscribe ends one orchestrator's interest in the VNI. Once no orchestrator wants it, this
+  // host leaves the VNI group and all its Security Associations are removed. Idempotent.
   rpc Unsubscribe(UnsubscribeRequest) returns (UnsubscribeResponse);
-  // DataplaneReset reports that the dataplane lost all its Security Associations: every pair of
-  // this host gets fresh ones.
+  // DataplaneReset reports that one orchestrator's dataplane lost all its Security Associations:
+  // every pair of this host gets fresh ones, which that orchestrator adds and another one switches
+  // to.
   rpc DataplaneReset(DataplaneResetRequest) returns (DataplaneResetResponse);
+  // Status tells how this host stands, and how each pair stands from one orchestrator's side.
   rpc Status(StatusRequest) returns (StatusResponse);
   // WatchSecurityAssociations streams the steps to carry out. The orchestrator first sends its
-  // inventory, then one confirmation per step.
+  // inventory, which names it, then one confirmation per step. A stream of the same name replaces
+  // the old one, another name adds a stream, and a third one is refused while two are connected.
   rpc WatchSecurityAssociations(stream WatchRequest) returns (stream Step);
 }
 
@@ -38,15 +43,22 @@ message InitResponse {}
 
 message SubscribeRequest {
   uint32 vni = 1;
+  // the name the orchestrator gives its stream, see Inventory
+  string orchestrator = 2;
 }
 message SubscribeResponse {}
 
 message UnsubscribeRequest {
   uint32 vni = 1;
+  // the name the orchestrator gives its stream, see Inventory
+  string orchestrator = 2;
 }
 message UnsubscribeResponse {}
 
-message DataplaneResetRequest {}
+message DataplaneResetRequest {
+  // the name the orchestrator gives its stream, see Inventory
+  string orchestrator = 1;
+}
 message DataplaneResetResponse {}
 
 enum Direction {
@@ -88,9 +100,11 @@ message WatchRequest {
   }
 }
 
-// Inventory lists the Security Associations the orchestrator holds, without keys.
+// Inventory lists the Security Associations the orchestrator holds, without keys, and names the
+// stream. A host with one orchestrator can leave the name empty.
 message Inventory {
   repeated SecurityAssociationID ids = 1;
+  string orchestrator = 2;
 }
 
 message Confirmation {
@@ -122,7 +136,10 @@ message RemoveSecurityAssociation {
   SecurityAssociationID id = 1;
 }
 
-message StatusRequest {}
+message StatusRequest {
+  // whose side the pairs are told from, see Inventory
+  string orchestrator = 1;
+}
 
 enum Waiting {
   WAITING_NOTHING = 0;
@@ -136,6 +153,11 @@ enum Waiting {
   WAITING_PEER_SWITCHED = 4;
   // the orchestrator to remove a Security Association
   WAITING_REMOVE = 5;
+}
+
+message OrchestratorStatus {
+  string name = 1;
+  bool connected = 2;
 }
 
 message PairStatus {
@@ -158,8 +180,11 @@ message StatusResponse {
   repeated uint32 vnis = 3;
   bool server_connected = 4;
   string server_boot_id = 5;
+  // whether any orchestrator is
   bool orchestrator_connected = 6;
   repeated PairStatus pairs = 7;
+  // the orchestrators known, also those away
+  repeated OrchestratorStatus orchestrators = 8;
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -46,6 +46,10 @@ fn print_status(st: &proto::StatusResponse) {
         if st.orchestrator_connected { "connected" } else { "not connected" }
     );
     println!("vnis: {}", st.vnis.iter().map(u32::to_string).collect::<Vec<_>>().join(" "));
+}
+
+/// The pairs from one orchestrator's side. With a name, each line ends in it.
+fn print_pairs(st: &proto::StatusResponse, orchestrator: &str) {
     for p in &st.pairs {
         let mut line = format!(
             "vni {} pair {}: epoch {}, spi out {} in {}",
@@ -61,6 +65,9 @@ fn print_status(st: &proto::StatusResponse) {
         line += &format!(", waiting: {}", waiting_name(p.waiting()));
         if !p.last_error.is_empty() {
             line += &format!(", last error: {}", p.last_error);
+        }
+        if !orchestrator.is_empty() {
+            line += &format!(", orchestrator {orchestrator}");
         }
         println!("{line}");
     }
@@ -79,7 +86,16 @@ fn waiting_name(waiting: proto::Waiting) -> &'static str {
 
 async fn status(address: SocketAddr) -> anyhow::Result<()> {
     let mut api = ClientApiClient::connect(format!("http://{address}")).await?;
-    print_status(&api.status(proto::StatusRequest {}).await?.into_inner());
+    let st = api.status(proto::StatusRequest::default()).await?.into_inner();
+    print_status(&st);
+    if st.orchestrators.iter().all(|o| o.name.is_empty()) {
+        print_pairs(&st, "");
+    }
+    for o in st.orchestrators.iter().filter(|o| !o.name.is_empty()) {
+        println!("orchestrator {}: {}", o.name, if o.connected { "connected" } else { "not connected" });
+        let request = proto::StatusRequest { orchestrator: o.name.clone() };
+        print_pairs(&api.status(request).await?.into_inner(), &o.name);
+    }
     Ok(())
 }
 
