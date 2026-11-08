@@ -37,6 +37,43 @@ var _ = Describe("Restarts", func() {
 		s = startServer()
 	})
 
+	It("hands over no step before Start, so that a step waiting across a reset never reaches the new dataplane", func() {
+		hosts := threeHosts(s, 100)
+		a := hosts[1]
+		old := keysOf(hosts)
+		Expect(a.conn.Close()).To(Succeed())
+		// a's dataplane restarts while the pair moves on, so a step waits for its orchestrator
+		a.orch.mtx.Lock()
+		clear(a.orch.sas)
+		a.orch.mtx.Unlock()
+		epoch := s.epoch(100)
+		_, err := s.admin.Rekey(context.Background(), &pb.RekeyRequest{Vni: 100})
+		Expect(err).NotTo(HaveOccurred())
+		Eventually(func() uint64 { return s.epoch(100) }).Should(BeNumerically(">", epoch))
+		before := order.Load()
+
+		a.dial()
+		Consistently(func() []call { return a.orch.callsSince(before) }).Should(BeEmpty(), "no step before Start")
+		Expect(a.status().Pairs).NotTo(BeEmpty())
+		Expect(a.conn.DataplaneReset(context.Background())).To(Succeed())
+		Consistently(func() []call { return a.orch.callsSince(before) }).Should(BeEmpty(), "no step before Start, after the reset either")
+
+		a.conn.Start()
+		expectAllReplaced(hosts, 100, map[mlsbond.SecurityAssociationID]string{})
+		for id, k := range keysOf(hosts) {
+			if id.Src == a.underlay() || id.Dst == a.underlay() {
+				Expect(old).NotTo(ContainElement(k), "%v of a's pairs is fresh", id)
+			}
+		}
+		// what a holds is all it was ever given: nothing from before the reset came and was forgotten
+		calls := a.orch.callsSince(before)
+		for _, c := range calls {
+			Expect(c.kind).To(Equal(add), "a adds afresh: %v", c)
+			Expect(a.orch.held()).To(HaveKey(c.id), "%v is one a was given, and still holds", c.id)
+		}
+		expectSafeOrder(hosts...)
+	})
+
 	DescribeTable("gives a host whose dataplane was reset fresh Security Associations for its pairs only", func(resetting int) {
 		hosts := threeHosts(s, 100)
 		// a is the committer, having created the group

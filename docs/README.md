@@ -205,6 +205,18 @@ conn.Subscribe(ctx, 100)
 If `cb` also implements `Inventory`, it hands over the IDs of what it holds every time the stream
 opens. After every reconnect, `Connect` repeats `Init`, the subscriptions and the stream.
 
+An orchestrator that may find its dataplane new or empty when it connects settles that before any step
+can come, as a step already sent when the reset is reported would stay in the dataplane with no one
+knowing of it (ADR 0008):
+
+```go
+conn, err := mlsbond.Dial(ctx, "[::1]:4714", "hostA", hostPrefix, cb)
+st, err := conn.Status(ctx)
+// compare st with the dataplane
+conn.DataplaneReset(ctx)
+conn.Start()
+```
+
 On a host with an HA pair of dataplanes, each orchestrator names itself, and gives the same host name
 and prefix (ADR 0016):
 

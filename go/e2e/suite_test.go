@@ -189,6 +189,17 @@ func (h *host) connect() {
 	DeferCleanup(func() { _ = conn.Close() })
 }
 
+// dial connects the orchestrator with no steps coming yet.
+func (h *host) dial() {
+	Eventually(func() error {
+		conn, err := mlsbond.Dial(context.Background(), h.addr, h.clientName(), h.prefix, h.orch, mlsbond.WithOrchestrator(h.orchestrator))
+		h.conn = conn
+		return err
+	}).Should(Succeed())
+	conn := h.conn
+	DeferCleanup(func() { _ = conn.Close() })
+}
+
 func (h *host) subscribe(vnis ...uint32) {
 	for _, vni := range vnis {
 		Expect(h.conn.Subscribe(context.Background(), vni)).To(Succeed())

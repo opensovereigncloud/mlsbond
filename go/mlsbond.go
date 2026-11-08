@@ -5,6 +5,9 @@
 // connection is new, it repeats Init and the subscriptions and reopens the step stream, handing
 // over the inventory if the Client also implements Inventory.
 //
+// An orchestrator that may have to report a DataplaneReset calls Dial, reports it, and calls Start,
+// so that no step is underway across the reset.
+//
 // A host running an HA pair of dataplanes has one mlsbond client and two orchestrators, each driving
 // its own dataplane. They tell themselves apart with WithOrchestrator.
 package mlsbond
@@ -179,10 +182,20 @@ func WithOrchestrator(name string) Option {
 	return func(c *Conn) { c.orchestrator = name }
 }
 
-// Connect connects to the mlsbond client at address (host:port), names this host to it, and
-// starts handing it the steps for client. It fails if the mlsbond client is unreachable or
-// refuses the name or host prefix.
+// Connect is Dial followed by Start, for an orchestrator that has nothing to settle before steps come.
 func Connect(ctx context.Context, address, name string, hostPrefix netip.Prefix, client Client, opts ...Option) (*Conn, error) {
+	c, err := Dial(ctx, address, name, hostPrefix, client, opts...)
+	if err != nil {
+		return nil, err
+	}
+	c.Start()
+	return c, nil
+}
+
+// Dial connects to the mlsbond client at address (host:port) and names this host to it. No step
+// reaches client until Start. It fails if the mlsbond client is unreachable or refuses the name or
+// host prefix.
+func Dial(ctx context.Context, address, name string, hostPrefix netip.Prefix, client Client, opts ...Option) (*Conn, error) {
 	conn, err := grpc.NewClient(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
@@ -204,17 +217,24 @@ func Connect(ctx context.Context, address, name string, hostPrefix netip.Prefix,
 		conn.Close()
 		return nil, err
 	}
+	return c, nil
+}
+
+// Start opens the step stream, handing over the inventory, and keeps it open from here on. Call it
+// once.
+func (c *Conn) Start() {
 	runCtx, cancel := context.WithCancel(context.Background())
 	c.cancel = cancel
 	go c.run(runCtx)
-	return c, nil
 }
 
 // Close stops handing over steps. The mlsbond client keeps the subscriptions of the last orchestrator
 // connected, and ends those of one that closes while the other stays.
 func (c *Conn) Close() error {
-	c.cancel()
-	<-c.done
+	if c.cancel != nil {
+		c.cancel()
+		<-c.done
+	}
 	return c.conn.Close()
 }
 
@@ -251,7 +271,10 @@ func (c *Conn) unsubscribe(ctx context.Context, vni uint32) error {
 	return nil
 }
 
-// DataplaneReset reports that this orchestrator's dataplane lost all its Security Associations.
+// DataplaneReset reports that this orchestrator's dataplane lost all its Security Associations. The
+// mlsbond client forgets what it asked of this orchestrator, but it cannot recall a step already sent:
+// carried out after this call, that step stays in the dataplane with no one knowing of it. So report
+// a reset found out when connecting between Dial and Start, when no step can be underway.
 func (c *Conn) DataplaneReset(ctx context.Context) error {
 	_, err := c.api.DataplaneReset(ctx, &pb.DataplaneResetRequest{Orchestrator: c.orchestrator})
 	return err
