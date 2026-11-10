@@ -1,0 +1,7 @@
+# The image needs only what cargo builds from; target/ alone is gigabytes.
+*
+!Cargo.toml
+!Cargo.lock
+!build.rs
+!proto/
+!src/
