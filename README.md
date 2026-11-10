@@ -33,15 +33,15 @@ build brings its own `protoc`.
 ## Run
 
 ```bash
-mlsbond-server --listen '[::]:4712' --admin-listen '[::1]:4713'
-mlsbond-client --server 'fd00::1:4712' --listen '[::1]:4714'
+mlsbond-server --listen '[::]:4750' --admin-listen '[::1]:4751'
+mlsbond-client --server 'fd00::1:4750' --listen '[::1]:4752'
 ```
 
 The client does nothing until its orchestrator calls `Init` with the host's name and underlay /64.
 From Go:
 
 ```go
-conn, err := mlsbond.Connect(ctx, "[::1]:4714", "hostA", netip.MustParsePrefix("fd00:a::/64"), cb)
+conn, err := mlsbond.Connect(ctx, "[::1]:4752", "hostA", netip.MustParsePrefix("fd00:a::/64"), cb)
 conn.Subscribe(ctx, 100)
 ```
 

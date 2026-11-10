@@ -116,7 +116,7 @@
 	<text class="t-h" x="486" y="124">mlsbond-server</text>
 	<rect class="box-dim" x="861" y="110" width="57" height="20" rx="10"/>
 	<text class="t-m t-dim mid" x="889.5" y="124">no keys</text>
-	<text class="t-m" x="486" y="148">Delivery :4712 · Admin :4713</text>
+	<text class="t-m" x="486" y="148">Delivery :4750 · Admin :4751</text>
 	<text class="t-m" x="486" y="165">per VNI group: members oldest first, the committer,</text>
 	<text class="t-m" x="486" y="182">a numbered message log, pending joins, removals, rekeys</text>
 	<text class="t-m" x="486" y="199">uploaded key packages · rekey policy · boot ID</text>
@@ -142,7 +142,7 @@
 	<text class="t-h" x="76" y="394">mlsbond-client</text>
 	<rect class="fill-back" x="592" y="380" width="36" height="20" rx="10"/>
 	<text class="t-m c-back mid" x="610.0" y="394">keys</text>
-	<text class="t-m" x="76" y="416">ClientAPI [::1]:4714 · member of each subscribed VNI group</text>
+	<text class="t-m" x="76" y="416">ClientAPI [::1]:4752 · member of each subscribed VNI group</text>
 	<text class="t-m" x="76" y="434">derives every pair's Security Associations from the exporter</text>
 	<text class="t-m" x="76" y="452">paces each step on the peer's Ready / Switched</text>
 	<text class="t-m t-dim" x="76" y="470">memory only: a restart rejoins and rekeys this host's pairs</text>
@@ -170,7 +170,7 @@
 	<text class="t-h" x="776" y="394">mlsbond-client</text>
 	<rect class="fill-back" x="1292" y="380" width="36" height="20" rx="10"/>
 	<text class="t-m c-back mid" x="1310.0" y="394">keys</text>
-	<text class="t-m" x="776" y="416">ClientAPI [::1]:4714 · member of each subscribed VNI group</text>
+	<text class="t-m" x="776" y="416">ClientAPI [::1]:4752 · member of each subscribed VNI group</text>
 	<text class="t-m" x="776" y="434">derives every pair's Security Associations from the exporter</text>
 	<text class="t-m" x="776" y="452">paces each step on the peer's Ready / Switched</text>
 	<text class="t-m t-dim" x="776" y="470">memory only: a restart rejoins and rekeys this host's pairs</text>

@@ -194,7 +194,7 @@ away, only key changes wait.
 The Go package wraps the client API in the shape of `metalbond.Client`:
 
 ```go
-conn, err := mlsbond.Connect(ctx, "[::1]:4714", "hostA", hostPrefix, cb)
+conn, err := mlsbond.Connect(ctx, "[::1]:4752", "hostA", hostPrefix, cb)
 conn.Subscribe(ctx, 100)
 ```
 
@@ -210,7 +210,7 @@ can come, as a step already sent when the reset is reported would stay in the da
 knowing of it (ADR 0008):
 
 ```go
-conn, err := mlsbond.Dial(ctx, "[::1]:4714", "hostA", hostPrefix, cb)
+conn, err := mlsbond.Dial(ctx, "[::1]:4752", "hostA", hostPrefix, cb)
 st, err := conn.Status(ctx)
 // compare st with the dataplane
 conn.DataplaneReset(ctx)
@@ -221,7 +221,7 @@ On a host with an HA pair of dataplanes, each orchestrator names itself, and giv
 and prefix (ADR 0016):
 
 ```go
-conn, err := mlsbond.Connect(ctx, "[::1]:4714", "hostA", hostPrefix, cb, mlsbond.WithOrchestrator("metalnet-a"))
+conn, err := mlsbond.Connect(ctx, "[::1]:4752", "hostA", hostPrefix, cb, mlsbond.WithOrchestrator("metalnet-a"))
 ```
 
 To keep the inventory and the dataplane in step, metalnet keeps no state on disk:

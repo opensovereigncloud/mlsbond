@@ -14,7 +14,7 @@ struct Args {
     #[command(subcommand)]
     command: Option<Command>,
     /// address of the client API the orchestrator connects to
-    #[arg(long, default_value = "[::1]:4714")]
+    #[arg(long, default_value = "[::1]:4752")]
     listen: SocketAddr,
     /// the mlsbond server, host:port
     #[arg(long, required = true)]
@@ -32,7 +32,7 @@ enum Command {
     /// Show what a running mlsbond client holds: its VNIs and pairs, each with its epoch, SPIs and what it waits on
     Status {
         /// the client API of the mlsbond client
-        #[arg(long, default_value = "[::1]:4714")]
+        #[arg(long, default_value = "[::1]:4752")]
         address: SocketAddr,
     },
 }

@@ -10,10 +10,10 @@ use mlsbond::server;
 #[command(about = "mlsbond server: the Delivery Service of every VNI group")]
 struct Args {
     /// address of the delivery stream the mlsbond clients connect to
-    #[arg(long, default_value = "[::]:4712")]
+    #[arg(long, default_value = "[::]:4750")]
     listen: SocketAddr,
     /// address of the admin API
-    #[arg(long, default_value = "[::1]:4713")]
+    #[arg(long, default_value = "[::1]:4751")]
     admin_listen: SocketAddr,
     /// seconds a member's stream may be gone before it is removed from its VNI groups
     #[arg(long, default_value_t = 10.0)]
